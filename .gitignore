@@ -1,0 +1,43 @@
+# Maven
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+
+# Logs
+logs/
+*.log
+
+# Frontend (later)
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+
+# Docker volumes
+mysql-data/
+redis-data/
+
+# Superpowers session workspace
+.superpowers/
+
+# Local AI agent configs
+.agents/
+.claude/
+
+# Sensitive config (copy from application-template.yml)
+src/main/resources/application.yml

@@ -91,10 +91,80 @@ flowchart TD
     L --> M[返回新Token对]
 ```
 
-### 设计亮点
-- Token 黑名单用 Redis 存储，key 为 `blacklist:{jti}`，value 过期时间 = Token 剩余有效期，避免永久存储。
+### 核心代码
+
+**Redis Set 双写 + DB 兜底**
+```java
+public void addFavorite(Long userId, Long bookId) {
+    // 先写 DB
+    favoriteMapper.insert(f);
+    // 再写 Redis Set（异步缓存，失败不影响主流程）
+    try {
+        RSet<Long> set = redissonClient.getSet("favorite:user:" + userId);
+        set.add(bookId);
+    } catch (Exception e) {
+        log.warn("Redis favorite add failed", e);
+    }
+}
+
+public boolean isFavorited(Long userId, Long bookId) {
+    // 先查 Redis
+    try {
+        RSet<Long> set = redissonClient.getSet("favorite:user:" + userId);
+        if (set.contains(bookId)) return true;
+    } catch (Exception e) {
+        log.warn("Redis favorite check failed, fallback to DB", e);
+    }
+    // 缓存穿透回查 DB
+    return favoriteMapper.selectCount(
+        new LambdaQueryWrapper<Favorite>()
+            .eq(Favorite::getUserId, userId)
+            .eq(Favorite::getBookId, bookId)
+            .eq(Favorite::getDeleted, 0)
+    ) > 0;
+}
+```
 - Refresh Token 只能用于刷新，Access Token 只能用于访问，防止 Token 类型混淆攻击。
 - 密码使用 BCrypt 加盐哈希，不可反解。
+
+### 核心代码
+
+**Token 黑名单（Redis 精确过期）**
+```java
+@Service
+@RequiredArgsConstructor
+public class TokenBlacklistServiceImpl implements TokenBlacklistService {
+    private static final String PREFIX = "blacklist:";
+    private final StringRedisTemplate redis;
+
+    public void revoke(String jti, long expiresAtEpochMs) {
+        long remaining = expiresAtEpochMs - Instant.now().toEpochMilli();
+        if (remaining <= 0) return;
+        redis.opsForValue().set(PREFIX + jti, "1", Duration.ofMillis(remaining));
+    }
+
+    public boolean isRevoked(String jti) {
+        return Boolean.TRUE.equals(redis.hasKey(PREFIX + jti));
+    }
+}
+```
+
+**刷新 Token（旧 Token 加入黑名单）**
+```java
+public TokenVO refresh(RefreshTokenDTO dto) {
+    JwtUtil.UserClaims claims = jwtUtil.parse(dto.getRefreshToken());
+    String type = jwtUtil.getTokenType(dto.getRefreshToken());
+    if (!"refresh".equals(type)) {
+        throw new BusinessException(ResultCode.TOKEN_TYPE_MISMATCH);
+    }
+    if (blacklist.isRevoked(claims.jti())) {
+        throw new BusinessException(ResultCode.TOKEN_INVALID);
+    }
+    // 将旧 Refresh Token 加入黑名单，防止重用
+    blacklist.revoke(claims.jti(), claims.expiresAtEpochMs());
+    return buildTokenVO(user);
+}
+```
 
 ---
 
@@ -162,6 +232,59 @@ flowchart TD
 - 删除分类前校验是否有子分类，防止误删。
 - 分类树缓存 `category:tree`，增删改时全部清除。
 
+### 核心代码
+
+**MySQL 全文搜索（失败降级 LIKE）**
+```java
+public PageResult<BookListVO> search(String keyword, Integer page, Integer size) {
+    String kw = keyword.trim();
+    if (kw.length() < 2) {
+        return list(simpleQuery(kw, page, size));  // 短词直接走 LIKE
+    }
+    try {
+        List<Book> rows = bookMapper.selectList(
+            new LambdaQueryWrapper<Book>()
+                .apply("MATCH(title, subtitle, author) AGAINST({0} IN BOOLEAN MODE)", kw)
+                .eq(Book::getStatus, 1)
+                .eq(Book::getDeleted, 0)
+                .orderByDesc(Book::getId)
+        );
+        if (rows.isEmpty()) {
+            return list(simpleQuery(kw, page, size));  // 全文无结果降级 LIKE
+        }
+        List<BookListVO> vos = rows.stream()
+            .map(this::toListVO).collect(Collectors.toList());
+        return manualPage(vos, page, size);
+    } catch (Exception e) {
+        return list(simpleQuery(kw, page, size));  // 异常降级 LIKE
+    }
+}
+```
+
+**ISBN 唯一校验（支持恢复逻辑删除）**
+```java
+@Transactional
+@CacheEvict(cacheNames = {"book:hot", "book:new"}, allEntries = true)
+public BookVO create(BookFormDTO dto) {
+    Book existing = bookMapper.selectByIsbn(dto.getIsbn());
+    if (existing != null) {
+        if (existing.getDeleted() == 0) {
+            throw new BusinessException(ResultCode.BIZ_ERROR, "ISBN 已存在");
+        }
+        // 恢复已逻辑删除的书籍并更新字段
+        existing.setDeleted(0);
+        existing.setTitle(dto.getTitle());
+        existing.setAuthor(dto.getAuthor());
+        // ... 其他字段
+        bookMapper.updateById(existing);
+        return toVO(existing);
+    }
+    Book b = fromFormDTO(dto);
+    bookMapper.insert(b);
+    return toVO(b);
+}
+```
+
 ---
 
 ## 5. 购物车 (CartItem)
@@ -198,6 +321,53 @@ flowchart TD
 
 ### 设计亮点
 - 购物车条目采用逻辑删除，恢复时直接更新数量和选中状态，避免重复记录。
+
+### 核心代码
+
+**加入购物车（合并同款 + 并发恢复）**
+```java
+public CartItemVO addToCart(Long userId, CartItemFormDTO dto) {
+    // 先查询是否存在
+    CartItem exist = cartItemMapper.selectOne(
+        new LambdaQueryWrapper<CartItem>()
+            .eq(CartItem::getUserId, userId)
+            .eq(CartItem::getBookId, dto.getBookId())
+            .eq(CartItem::getDeleted, 0)
+    );
+    if (exist != null) {
+        int newQty = exist.getQuantity() + dto.getQuantity();
+        if (newQty > book.getStock()) {
+            throw new BusinessException(ResultCode.STOCK_INSUFFICIENT);
+        }
+        exist.setQuantity(newQty);
+        exist.setSelected(1);
+        cartItemMapper.updateById(exist);
+        return toVO(exist, book);
+    }
+
+    // 不存在则插入，捕获并发重复键异常做恢复
+    try {
+        CartItem item = new CartItem();
+        item.setUserId(userId);
+        item.setBookId(dto.getBookId());
+        item.setQuantity(dto.getQuantity());
+        item.setSelected(1);
+        cartItemMapper.insert(item);
+        return toVO(item, book);
+    } catch (DuplicateKeyException e) {
+        CartItem retryItem = cartItemMapper.selectOneIgnoreDeleted(userId, dto.getBookId());
+        if (retryItem != null) {
+            int newQty = retryItem.getQuantity() + dto.getQuantity();
+            cartItemMapper.updateIgnoreDeleted(retryItem.getId(), newQty, 1);
+            retryItem.setQuantity(newQty);
+            retryItem.setSelected(1);
+            retryItem.setDeleted(0);
+            return toVO(retryItem, book);
+        }
+        throw e;
+    }
+}
+```
 
 ---
 
@@ -294,6 +464,61 @@ flowchart TD
 ### 设计亮点
 - 所有状态变更均使用乐观锁（`WHERE status = xxx`），防止并发下的状态错乱。
 - 地址快照保证历史订单的地址信息不变。
+
+### 核心代码
+
+**库存预扣（乐观锁）**
+```java
+int affected = bookMapper.update(null,
+    new LambdaUpdateWrapper<Book>()
+        .eq(Book::getId, book.getId())
+        .ge(Book::getStock, item.getQuantity())
+        .setSql("stock = stock - " + item.getQuantity())
+        .setSql("sales_count = sales_count + " + item.getQuantity())
+);
+if (affected == 0) {
+    throw new BusinessException(ResultCode.STOCK_INSUFFICIENT,
+        String.format("《%s》库存不足", book.getTitle()));
+}
+```
+
+**支付（乐观锁状态变更）**
+```java
+walletService.pay(userId, orderNo, order.getPayAmount());
+
+int affected = orderMainMapper.update(null,
+    new LambdaUpdateWrapper<OrderMain>()
+        .eq(OrderMain::getId, order.getId())
+        .eq(OrderMain::getStatus, ORDER_STATUS_PENDING)
+        .set(OrderMain::getStatus, ORDER_STATUS_PAID)
+        .set(OrderMain::getPayMethod, "BALANCE")
+        .set(OrderMain::getPayTime, LocalDateTime.now())
+);
+if (affected == 0) {
+    throw new BusinessException(ResultCode.ORDER_STATUS_INVALID);
+}
+```
+
+**取消（库存回滚 + 释放优惠券）**
+```java
+for (OrderItem oi : items) {
+    bookMapper.update(null,
+        new LambdaUpdateWrapper<Book>()
+            .eq(Book::getId, oi.getBookId())
+            .setSql("stock = stock + " + oi.getQuantity())
+            .setSql("sales_count = sales_count - " + oi.getQuantity())
+    );
+}
+int affected = orderMainMapper.update(null,
+    new LambdaUpdateWrapper<OrderMain>()
+        .eq(OrderMain::getId, order.getId())
+        .eq(OrderMain::getStatus, ORDER_STATUS_PENDING)
+        .set(OrderMain::getStatus, ORDER_STATUS_CANCELLED)
+);
+if (order.getCouponId() != null) {
+    userCouponService.releaseForOrder(userId, order.getCouponId(), orderNo);
+}
+```
 
 ---
 
@@ -392,6 +617,83 @@ flowchart TD
 - `calcDiscount`：根据模板类型计算实际优惠金额。
 - `findBest`：遍历用户所有可用优惠券，自动推荐优惠力度最大的一张。
 - 折扣券计算时保证优惠金额不超过 `总金额 - 0.01`。
+
+### 核心代码
+
+**领取优惠券（Redis Semaphore 限流 + DB 兜底）**
+```java
+public ClaimResultVO claim(Long userId, Long templateId) {
+    RSemaphore semaphore = redissonClient.getSemaphore(
+        "coupon:stock:" + templateId);
+    boolean acquired;
+    try {
+        acquired = semaphore.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
+        // Redis 被重置时，从 DB 重新初始化
+        if (!acquired) {
+            int dbRemaining = Math.max(0, t.getTotalCount() - t.getClaimedCount());
+            if (dbRemaining > 0) {
+                semaphore.trySetPermits(dbRemaining);
+                acquired = semaphore.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
+            }
+        }
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new BusinessException(ResultCode.COUPON_OUT_OF_STOCK);
+    }
+    if (!acquired) {
+        throw new BusinessException(ResultCode.COUPON_OUT_OF_STOCK);
+    }
+
+    try {
+        UserCoupon uc = new UserCoupon();
+        uc.setUserId(userId);
+        uc.setTemplateId(templateId);
+        uc.setStatus("UNUSED");
+        userCouponMapper.insert(uc);
+        couponTemplateMapper.update(null,
+            new LambdaUpdateWrapper<CouponTemplate>()
+                .eq(CouponTemplate::getId, templateId)
+                .setSql("claimed_count = claimed_count + 1")
+        );
+        return vo;
+    } catch (RuntimeException e) {
+        try { semaphore.release(); } catch (Exception ignore) {}
+        throw e;
+    }
+}
+```
+
+**优惠券锁定（Redisson 分布式锁 + 乐观锁状态变更）**
+```java
+public UserCoupon lockForOrder(Long userId, Long userCouponId, String orderNo) {
+    RLock lock = redissonClient.getLock("user_coupon:" + userCouponId);
+    boolean locked;
+    try {
+        locked = lock.tryLock(3, 10, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new BusinessException(ResultCode.COUPON_LOCKED_BY_OTHER);
+    }
+    if (!locked) {
+        throw new BusinessException(ResultCode.COUPON_LOCKED_BY_OTHER);
+    }
+    try {
+        int affected = userCouponMapper.update(null,
+            new LambdaUpdateWrapper<UserCoupon>()
+                .eq(UserCoupon::getId, userCouponId)
+                .eq(UserCoupon::getStatus, "UNUSED")
+                .set(UserCoupon::getStatus, "LOCKED")
+                .set(UserCoupon::getLockedOrderNo, orderNo)
+        );
+        if (affected == 0) {
+            throw new BusinessException(ResultCode.COUPON_NOT_USABLE);
+        }
+        return uc;
+    } finally {
+        if (lock.isHeldByCurrentThread()) lock.unlock();
+    }
+}
+```
 
 ---
 
@@ -496,6 +798,54 @@ flowchart TD
 - Lua 脚本保证库存扣减和限购计数的原子性，避免并发超卖。
 - 队列模式将同步压力转为异步处理，提升系统吞吐量。
 
+### 核心代码
+
+**Lua 原子扣减脚本**
+```java
+private static final String SECKILL_LUA = 
+    "local stockKey = KEYS[1]\n" +
+    "local boughtKey = KEYS[2]\n" +
+    "local userId = ARGV[1]\n" +
+    "local limit = tonumber(ARGV[2])\n" +
+    "local bought = tonumber(redis.call('HGET', boughtKey, userId) or '0')\n" +
+    "if bought >= limit then\n" +
+    "    return -1\n" +
+    "end\n" +
+    "local stock = redis.call('GET', stockKey)\n" +
+    "if not stock then\n" +
+    "    return -2\n" +
+    "end\n" +
+    "if tonumber(stock) <= 0 then\n" +
+    "    return 0\n" +
+    "end\n" +
+    "redis.call('DECR', stockKey)\n" +
+    "redis.call('HINCRBY', boughtKey, userId, 1)\n" +
+    "return 1";
+
+// 执行
+Long result = redissonClient.getScript(LongCodec.INSTANCE).eval(
+    RScript.Mode.READ_WRITE,
+    SECKILL_LUA,
+    RScript.ReturnType.INTEGER,
+    Arrays.asList(stockKey, boughtKey),
+    String.valueOf(userId),
+    String.valueOf(activity.getPerUserLimit())
+);
+```
+
+**下单失败回滚 Redis**
+```java
+try {
+    return doCreateOrder(userId, activity, address);
+} catch (RuntimeException e) {
+    try {
+        redissonClient.getAtomicLong(stockKey).incrementAndGet();
+        decrementBought(boughtKey, userId);
+    } catch (Exception ignore) {}
+    throw e;
+}
+```
+
 ---
 
 ## 9. 钱包 (Wallet)
@@ -528,6 +878,39 @@ flowchart TD
 - 钱包余额直接存 User 表，避免多表 Join；流水单独存 WalletTransaction 表保证可追溯。
 - 支付使用 `WHERE wallet_balance >= amount` 乐观锁，防止余额扣成负数。
 
+### 核心代码
+
+**支付（乐观锁防余额扣成负数）**
+```java
+public void pay(Long userId, String orderNo, BigDecimal amount) {
+    BigDecimal before = user.getWalletBalance();
+    if (before.compareTo(amount) < 0) {
+        throw new BusinessException(ResultCode.BIZ_ERROR, "余额不足");
+    }
+    BigDecimal after = before.subtract(amount);
+
+    int affected = userMapper.update(null,
+        new LambdaUpdateWrapper<User>()
+            .eq(User::getId, userId)
+            .ge(User::getWalletBalance, amount)   // 乐观锁
+            .set(User::getWalletBalance, after)
+    );
+    if (affected == 0) {
+        throw new BusinessException(ResultCode.BIZ_ERROR, "余额不足或支付失败");
+    }
+
+    WalletTransaction tx = new WalletTransaction();
+    tx.setUserId(userId);
+    tx.setOrderNo(orderNo);
+    tx.setType("PAY");
+    tx.setAmount(amount);
+    tx.setBalanceBefore(before);
+    tx.setBalanceAfter(after);
+    tx.setRemark("余额支付");
+    walletTransactionMapper.insert(tx);
+}
+```
+
 ---
 
 ## 10. 收藏 (Favorite)
@@ -540,6 +923,37 @@ flowchart TD
 - **取消收藏**：逻辑删除，Redis Set 同步移除。
 - **是否已收藏**：先查 Redis，缓存穿透时回查 DB。
 - **列表**：批量查询图书和分类信息组装 VO。
+
+### 核心代码
+
+**Redis Set 双写 + DB 兜底**
+```java
+public void addFavorite(Long userId, Long bookId) {
+    favoriteMapper.insert(f);
+    try {
+        RSet<Long> set = redissonClient.getSet("favorite:user:" + userId);
+        set.add(bookId);
+    } catch (Exception e) {
+        log.warn("Redis favorite add failed", e);
+    }
+}
+
+public boolean isFavorited(Long userId, Long bookId) {
+    try {
+        RSet<Long> set = redissonClient.getSet("favorite:user:" + userId);
+        if (set.contains(bookId)) return true;
+    } catch (Exception e) {
+        log.warn("Redis favorite check failed, fallback to DB", e);
+    }
+    // 缓存穿透回查 DB
+    return favoriteMapper.selectCount(
+        new LambdaQueryWrapper<Favorite>()
+            .eq(Favorite::getUserId, userId)
+            .eq(Favorite::getBookId, bookId)
+            .eq(Favorite::getDeleted, 0)
+    ) > 0;
+}
+```
 
 ---
 
@@ -598,6 +1012,60 @@ flowchart TD
 - 支持创建、重命名、删除、分页列出会话。
 - 历史消息限制（默认最近 10 条）控制 Token 消耗。
 
+### 核心代码
+
+**RAG 检索 + Prompt 构建**
+```java
+private List<Book> retrieveBookCandidates(String message, int limit) {
+    Set<Long> ids = new LinkedHashSet<>();
+    List<Book> result = new ArrayList<>();
+    if (hasText(message)) {
+        String kw = message.trim().length() > 12 
+            ? message.trim().substring(0, 12) : message.trim();
+        List<Book> matches = bookMapper.selectList(
+            new LambdaQueryWrapper<Book>()
+                .eq(Book::getStatus, 1)
+                .eq(Book::getDeleted, 0)
+                .and(w -> w.like(Book::getTitle, kw)
+                    .or().like(Book::getAuthor, kw)
+                    .or().like(Book::getDescription, kw))
+                .orderByDesc(Book::getSalesCount)
+                .last("LIMIT " + limit)
+        );
+        for (Book b : matches) {
+            if (ids.add(b.getId())) result.add(b);
+        }
+    }
+    // 候选不足时补充热销图书
+    if (result.size() < limit) {
+        int remaining = limit - result.size();
+        List<Book> hot = bookMapper.selectList(
+            new LambdaQueryWrapper<Book>()
+                .eq(Book::getStatus, 1)
+                .eq(Book::getDeleted, 0)
+                .notIn(!ids.isEmpty(), Book::getId, ids)
+                .orderByDesc(Book::getSalesCount)
+                .last("LIMIT " + remaining)
+        );
+        for (Book b : hot) {
+            if (ids.add(b.getId())) result.add(b);
+        }
+    }
+    return result;
+}
+
+private String buildContextSnippet(List<Book> books) {
+    StringBuilder sb = new StringBuilder();
+    int idx = 1;
+    for (Book b : books) {
+        sb.append(idx++).append(". 《").append(b.getTitle()).append("》");
+        if (b.getPrice() != null) sb.append(" 价格:¥").append(b.getPrice());
+        sb.append('\n');
+    }
+    return sb.toString();
+}
+```
+
 ---
 
 ## 13. 签到 (Checkin)
@@ -648,7 +1116,68 @@ flowchart TD
 - 本月已签到日期列表（用于日历展示）。
 - 明日预计奖励金额。
 
----
+### 核心代码
+
+**分布式锁 + Redis 缓存防重复**
+```java
+public CheckinResultVO checkin(Long userId) {
+    LocalDate today = LocalDate.now();
+    String lockKey = "checkin:lock:" + userId + ":" + today;
+    RLock lock = redissonClient.getLock(lockKey);
+
+    boolean locked = false;
+    try {
+        locked = lock.tryLock(3, 5, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new BusinessException(ResultCode.SERVER_ERROR, "操作被中断");
+    }
+    if (!locked) {
+        throw new BusinessException(ResultCode.BIZ_ERROR, "操作过于频繁");
+    }
+
+    try {
+        // Redis 缓存校验
+        String cacheKey = "checkin:today:" + userId;
+        String cached = stringRedisTemplate.opsForValue().get(cacheKey);
+        if ("1".equals(cached)) {
+            throw new BusinessException(ResultCode.BIZ_ERROR, "今日已签到");
+        }
+
+        // 连续天数计算
+        UserCheckin lastCheckin = userCheckinMapper.selectLatestByUser(userId);
+        int consecutive = 1;
+        if (lastCheckin != null 
+            && lastCheckin.getCheckinDate().equals(today.minusDays(1))) {
+            consecutive = lastCheckin.getConsecutiveDays() + 1;
+        }
+
+        // 奖励规则匹配
+        BigDecimal reward = new BigDecimal("0.10");
+        CheckinRewardRule bonusRule = rewardRuleMapper.selectOne(
+            new LambdaQueryWrapper<CheckinRewardRule>()
+                .eq(CheckinRewardRule::getConsecutiveDays, consecutive)
+        );
+        if (bonusRule != null) {
+            reward = reward.add(bonusRule.getRewardAmount());
+        }
+
+        // 插入记录 + 增加钱包余额
+        userCheckinMapper.insert(record);
+        userMapper.update(null,
+            new LambdaUpdateWrapper<User>()
+                .eq(User::getId, userId)
+                .setSql("wallet_balance = COALESCE(wallet_balance, 0) + " + reward)
+        );
+
+        // 设置 Redis 标记（26小时 TTL）
+        stringRedisTemplate.opsForValue().set(cacheKey, "1", Duration.ofHours(26));
+        return new CheckinResultVO(true, consecutive, reward, today);
+    } finally {
+        if (lock.isHeldByCurrentThread()) lock.unlock();
+    }
+}
+```
 
 ## 14. 管理员后台 (Admin)
 

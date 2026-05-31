@@ -2,10 +2,10 @@ package com.bookstore.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.bookstore.client.BookServiceClient;
+import com.bookstore.api.book.client.BookClient;
 import com.bookstore.domain.dto.cart.CartItemFormDTO;
 import com.bookstore.domain.po.CartItem;
-import com.bookstore.domain.vo.book.BookDetailVO;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.domain.vo.cart.CartItemVO;
 import com.bookstore.exception.BusinessException;
 import com.bookstore.mapper.CartItemMapper;
@@ -25,15 +25,15 @@ import java.util.stream.Collectors;
 public class CartItemServiceImpl implements CartItemService {
 
     private final CartItemMapper cartItemMapper;
-    private final BookServiceClient bookServiceClient;
+    private final BookClient bookServiceClient;
     private final OssUrlBuilder ossUrlBuilder;
 
-    private BookDetailVO requireBook(Long bookId) {
-        Result<BookDetailVO> result = bookServiceClient.getBook(bookId);
+    private BookDetailDTO requireBook(Long bookId) {
+        Result<BookDetailDTO> result = bookServiceClient.getBook(bookId);
         if (result == null || result.getCode() != ResultCode.SUCCESS.getCode()) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
-        BookDetailVO book = result.getData();
+        BookDetailDTO book = result.getData();
         if (book == null || book.getDeleted() == 1 || book.getStatus() != 1) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
@@ -43,7 +43,7 @@ public class CartItemServiceImpl implements CartItemService {
     @Override
     @Transactional
     public CartItemVO addToCart(Long userId, CartItemFormDTO dto) {
-        BookDetailVO book = requireBook(dto.getBookId());
+        BookDetailDTO book = requireBook(dto.getBookId());
         if (book.getStock() < dto.getQuantity()) {
             throw new BusinessException(ResultCode.STOCK_INSUFFICIENT);
         }
@@ -100,7 +100,7 @@ public class CartItemServiceImpl implements CartItemService {
                 .orderByDesc(CartItem::getCreateTime)
         );
         return rows.stream().map(i -> {
-            BookDetailVO b = requireBook(i.getBookId());
+            BookDetailDTO b = requireBook(i.getBookId());
             return toVO(i, b);
         }).collect(Collectors.toList());
     }
@@ -112,7 +112,7 @@ public class CartItemServiceImpl implements CartItemService {
             throw new BusinessException(ResultCode.PARAM_INVALID);
         }
         CartItem item = requireOwn(userId, cartItemId);
-        BookDetailVO book = requireBook(item.getBookId());
+        BookDetailDTO book = requireBook(item.getBookId());
         if (quantity > book.getStock()) {
             throw new BusinessException(ResultCode.STOCK_INSUFFICIENT);
         }
@@ -156,7 +156,7 @@ public class CartItemServiceImpl implements CartItemService {
         return item;
     }
 
-    private CartItemVO toVO(CartItem item, BookDetailVO book) {
+    private CartItemVO toVO(CartItem item, BookDetailDTO book) {
         CartItemVO vo = new CartItemVO();
         vo.setId(item.getId());
         vo.setBookId(item.getBookId());

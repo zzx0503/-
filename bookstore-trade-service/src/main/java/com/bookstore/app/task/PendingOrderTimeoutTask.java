@@ -2,7 +2,7 @@ package com.bookstore.app.task;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.bookstore.client.BookServiceClient;
+import com.bookstore.api.book.client.BookClient;
 import com.bookstore.domain.po.OrderItem;
 import com.bookstore.domain.po.OrderMain;
 import com.bookstore.mapper.OrderItemMapper;
@@ -23,7 +23,7 @@ public class PendingOrderTimeoutTask {
 
     private final OrderMainMapper orderMainMapper;
     private final OrderItemMapper orderItemMapper;
-    private final BookServiceClient bookServiceClient;
+    private final BookClient bookServiceClient;
 
     @Scheduled(fixedDelay = 60_000)
     @Transactional

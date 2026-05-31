@@ -2,8 +2,8 @@ package com.bookstore.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bookstore.client.BookServiceClient;
-import com.bookstore.client.UserServiceClient;
+import com.bookstore.api.book.client.BookClient;
+import com.bookstore.api.user.client.UserClient;
 import com.bookstore.domain.dto.order.CreateOrderDTO;
 import com.bookstore.domain.dto.order.PayOrderDTO;
 import com.bookstore.domain.po.CartItem;
@@ -11,8 +11,8 @@ import com.bookstore.domain.po.CouponTemplate;
 import com.bookstore.domain.po.OrderItem;
 import com.bookstore.domain.po.OrderMain;
 import com.bookstore.domain.po.UserCoupon;
-import com.bookstore.domain.vo.address.AddressVO;
-import com.bookstore.domain.vo.book.BookDetailVO;
+import com.bookstore.api.user.dto.AddressDTO;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.api.trade.dto.OrderDetailDTO;
 import com.bookstore.api.trade.dto.OrderItemDTO;
 import com.bookstore.domain.vo.order.OrderVO;
@@ -57,8 +57,8 @@ public class OrderServiceImpl implements OrderService {
     private final UserCouponService userCouponService;
     private final CouponCalculatorService couponCalculatorService;
     private final OssUrlBuilder ossUrlBuilder;
-    private final BookServiceClient bookServiceClient;
-    private final UserServiceClient userServiceClient;
+    private final BookClient bookServiceClient;
+    private final UserClient userServiceClient;
 
     private static final String ORDER_STATUS_PENDING = "PENDING_PAY";
     private static final String ORDER_STATUS_PAID = "PAID";
@@ -92,14 +92,14 @@ public class OrderServiceImpl implements OrderService {
         }
         cartItems.sort(java.util.Comparator.comparing(CartItem::getBookId));
 
-        AddressVO address = unwrap(userServiceClient.getAddress(dto.getAddressId()));
+        AddressDTO address = unwrap(userServiceClient.getAddress(dto.getAddressId()));
         if (address == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "收货地址不存在");
         }
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (CartItem item : cartItems) {
-            BookDetailVO book = unwrap(bookServiceClient.getBook(item.getBookId()));
+            BookDetailDTO book = unwrap(bookServiceClient.getBook(item.getBookId()));
             if (book == null || book.getDeleted() == 1 || book.getStatus() != 1) {
                 throw new BusinessException(ResultCode.BOOK_NOT_FOUND, "购物车中的图书已下架");
             }
@@ -146,7 +146,7 @@ public class OrderServiceImpl implements OrderService {
         orderMainMapper.insert(order);
 
         for (CartItem item : cartItems) {
-            BookDetailVO book = unwrap(bookServiceClient.getBook(item.getBookId()));
+            BookDetailDTO book = unwrap(bookServiceClient.getBook(item.getBookId()));
             OrderItem oi = new OrderItem();
             oi.setOrderId(order.getId());
             oi.setBookId(book.getId());
@@ -316,7 +316,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @SneakyThrows
-    private String toJsonSnapshot(AddressVO address) {
+    private String toJsonSnapshot(AddressDTO address) {
         Map<String, Object> map = Map.of(
             "receiver", address.getReceiver(),
             "phone", address.getPhone(),

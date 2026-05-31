@@ -2,14 +2,14 @@ package com.bookstore.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bookstore.client.TradeServiceClient;
-import com.bookstore.client.UserServiceClient;
+import com.bookstore.api.trade.client.TradeClient;
+import com.bookstore.api.trade.dto.OrderDetailDTO;
+import com.bookstore.api.user.client.UserClient;
+import com.bookstore.api.user.dto.UserProfileDTO;
 import com.bookstore.domain.dto.review.ReviewFormDTO;
 import com.bookstore.domain.po.Book;
 import com.bookstore.domain.po.Review;
-import com.bookstore.domain.vo.order.OrderDetailVO;
 import com.bookstore.domain.vo.review.ReviewVO;
-import com.bookstore.domain.vo.user.UserProfileVO;
 import com.bookstore.exception.BusinessException;
 import com.bookstore.mapper.BookMapper;
 import com.bookstore.mapper.ReviewMapper;
@@ -36,18 +36,18 @@ public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewMapper reviewMapper;
     private final BookMapper bookMapper;
-    private final TradeServiceClient tradeServiceClient;
-    private final UserServiceClient userServiceClient;
+    private final TradeClient tradeClient;
+    private final UserClient userClient;
     private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
     public ReviewVO createReview(Long userId, ReviewFormDTO dto) {
-        Result<OrderDetailVO> orderResult = tradeServiceClient.getOrderById(dto.getOrderId());
+        Result<OrderDetailDTO> orderResult = tradeClient.getOrderById(dto.getOrderId());
         if (orderResult == null || orderResult.getCode() != ResultCode.SUCCESS.getCode()) {
             throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
         }
-        OrderDetailVO order = orderResult.getData();
+        OrderDetailDTO order = orderResult.getData();
         if (order == null) {
             throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
         }
@@ -167,9 +167,9 @@ public class ReviewServiceImpl implements ReviewService {
         vo.setCreateTime(r.getCreateTime());
 
         try {
-            Result<UserProfileVO> userResult = userServiceClient.getUser(r.getUserId());
+            Result<UserProfileDTO> userResult = userClient.getUser(r.getUserId());
             if (userResult != null && userResult.getCode() == ResultCode.SUCCESS.getCode()) {
-                UserProfileVO u = userResult.getData();
+                UserProfileDTO u = userResult.getData();
                 if (u != null) {
                     vo.setUserNickname(u.getNickname());
                     vo.setUserAvatar(u.getAvatarUrl());

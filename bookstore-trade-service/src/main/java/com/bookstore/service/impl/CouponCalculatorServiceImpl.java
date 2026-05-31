@@ -1,11 +1,11 @@
 package com.bookstore.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.bookstore.client.BookServiceClient;
+import com.bookstore.api.book.client.BookClient;
 import com.bookstore.domain.po.CartItem;
 import com.bookstore.domain.po.CouponTemplate;
 import com.bookstore.domain.po.UserCoupon;
-import com.bookstore.domain.vo.book.BookDetailVO;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.domain.vo.coupon.CouponSelectionVO;
 import com.bookstore.domain.vo.coupon.UserCouponVO;
 import com.bookstore.exception.BusinessException;
@@ -34,7 +34,7 @@ public class CouponCalculatorServiceImpl implements CouponCalculatorService {
     private final UserCouponMapper userCouponMapper;
     private final CouponTemplateMapper couponTemplateMapper;
     private final CartItemMapper cartItemMapper;
-    private final BookServiceClient bookServiceClient;
+    private final BookClient bookServiceClient;
 
     @Override
     public BigDecimal calcDiscount(BigDecimal totalAmount, CouponTemplate template) {
@@ -97,16 +97,16 @@ public class CouponCalculatorServiceImpl implements CouponCalculatorService {
             throw new BusinessException(ResultCode.CART_ITEM_NOT_FOUND);
         }
         List<Long> bookIds = cartItems.stream().map(CartItem::getBookId).distinct().collect(Collectors.toList());
-        Map<Long, BookDetailVO> bookMap = bookIds.stream()
+        Map<Long, BookDetailDTO> bookMap = bookIds.stream()
             .map(id -> {
-                Result<BookDetailVO> r = bookServiceClient.getBook(id);
+                Result<BookDetailDTO> r = bookServiceClient.getBook(id);
                 return r != null && r.getCode() == ResultCode.SUCCESS.getCode() ? r.getData() : null;
             })
             .filter(b -> b != null)
-            .collect(Collectors.toMap(BookDetailVO::getId, b -> b));
+            .collect(Collectors.toMap(BookDetailDTO::getId, b -> b));
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (CartItem ci : cartItems) {
-            BookDetailVO b = bookMap.get(ci.getBookId());
+            BookDetailDTO b = bookMap.get(ci.getBookId());
             if (b == null) {
                 throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
             }

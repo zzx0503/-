@@ -3,11 +3,11 @@ package com.bookstore.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bookstore.client.BookServiceClient;
+import com.bookstore.api.book.client.BookClient;
 import com.bookstore.domain.dto.seckill.SeckillActivityDTO;
 import com.bookstore.domain.po.SeckillActivity;
 import com.bookstore.domain.po.SeckillOrder;
-import com.bookstore.domain.vo.book.BookDetailVO;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.domain.vo.seckill.SeckillActivityVO;
 import com.bookstore.exception.BusinessException;
 import com.bookstore.mapper.SeckillActivityMapper;
@@ -50,16 +50,16 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
 
     private final SeckillActivityMapper seckillActivityMapper;
     private final SeckillOrderMapper seckillOrderMapper;
-    private final BookServiceClient bookServiceClient;
+    private final BookClient bookServiceClient;
     private final RedissonClient redissonClient;
     private final OssUrlBuilder ossUrlBuilder;
 
-    private BookDetailVO requireBook(Long bookId) {
-        Result<BookDetailVO> result = bookServiceClient.getBook(bookId);
+    private BookDetailDTO requireBook(Long bookId) {
+        Result<BookDetailDTO> result = bookServiceClient.getBook(bookId);
         if (result == null || result.getCode() != ResultCode.SUCCESS.getCode()) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
-        BookDetailVO book = result.getData();
+        BookDetailDTO book = result.getData();
         if (book == null || book.getDeleted() == 1) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
@@ -70,7 +70,7 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
     @Transactional
     @CacheEvict(cacheNames = {"seckill:running", "seckill:upcoming"}, allEntries = true)
     public Long create(SeckillActivityDTO dto) {
-        BookDetailVO book = requireBook(dto.getBookId());
+        BookDetailDTO book = requireBook(dto.getBookId());
         if (dto.getStartTime().isAfter(dto.getEndTime()) || dto.getStartTime().isEqual(dto.getEndTime())) {
             throw new BusinessException(ResultCode.PARAM_INVALID, "开始时间必须早于结束时间");
         }
@@ -163,7 +163,7 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
     @Override
     public SeckillActivityVO detail(Long id, Long userId) {
         SeckillActivity a = requireById(id);
-        BookDetailVO book = requireBook(a.getBookId());
+        BookDetailDTO book = requireBook(a.getBookId());
         SeckillActivityVO vo = toVO(a, book);
         if (userId != null) {
             vo.setUserStatus(resolveUserStatus(userId, a));
@@ -180,7 +180,7 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
             w.eq(SeckillActivity::getStatus, status);
         }
         Page<SeckillActivity> p = seckillActivityMapper.selectPage(new Page<>(page, size), w);
-        Map<Long, BookDetailVO> bookMap = loadBookMap(p.getRecords());
+        Map<Long, BookDetailDTO> bookMap = loadBookMap(p.getRecords());
         List<SeckillActivityVO> list = p.getRecords().stream()
             .map(a -> toVO(a, bookMap.get(a.getBookId())))
             .collect(Collectors.toList());
@@ -259,7 +259,7 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
         if (activities.isEmpty()) {
             return List.of();
         }
-        Map<Long, BookDetailVO> bookMap = loadBookMap(activities);
+        Map<Long, BookDetailDTO> bookMap = loadBookMap(activities);
         return activities.stream().map(a -> {
             SeckillActivityVO vo = toVO(a, bookMap.get(a.getBookId()));
             if (userId != null) {
@@ -269,14 +269,14 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
         }).collect(Collectors.toList());
     }
 
-    private Map<Long, BookDetailVO> loadBookMap(List<SeckillActivity> activities) {
+    private Map<Long, BookDetailDTO> loadBookMap(List<SeckillActivity> activities) {
         if (activities.isEmpty()) {
             return new HashMap<>();
         }
         Set<Long> bookIds = activities.stream().map(SeckillActivity::getBookId).collect(Collectors.toCollection(HashSet::new));
-        Map<Long, BookDetailVO> map = new HashMap<>();
+        Map<Long, BookDetailDTO> map = new HashMap<>();
         for (Long id : bookIds) {
-            Result<BookDetailVO> result = bookServiceClient.getBook(id);
+            Result<BookDetailDTO> result = bookServiceClient.getBook(id);
             if (result != null && result.getCode() == ResultCode.SUCCESS.getCode() && result.getData() != null) {
                 map.put(id, result.getData());
             }
@@ -284,7 +284,7 @@ public class SeckillActivityServiceImpl implements SeckillActivityService {
         return map;
     }
 
-    private SeckillActivityVO toVO(SeckillActivity a, BookDetailVO book) {
+    private SeckillActivityVO toVO(SeckillActivity a, BookDetailDTO book) {
         SeckillActivityVO vo = new SeckillActivityVO();
         vo.setId(a.getId());
         vo.setBookId(a.getBookId());

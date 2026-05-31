@@ -3,13 +3,13 @@ package com.bookstore.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bookstore.client.BookServiceClient;
-import com.bookstore.client.UserServiceClient;
+import com.bookstore.api.book.client.BookClient;
+import com.bookstore.api.user.client.UserClient;
 import com.bookstore.domain.dto.seckill.SeckillBuyDTO;
 import com.bookstore.domain.po.SeckillActivity;
 import com.bookstore.domain.po.SeckillOrder;
-import com.bookstore.domain.vo.address.AddressVO;
-import com.bookstore.domain.vo.book.BookDetailVO;
+import com.bookstore.api.user.dto.AddressDTO;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.domain.vo.seckill.SeckillBuyResultVO;
 import com.bookstore.domain.vo.seckill.SeckillOrderVO;
 import com.bookstore.exception.BusinessException;
@@ -84,8 +84,8 @@ public class SeckillServiceImpl implements SeckillService {
     private final RedissonClient redissonClient;
     private final ObjectMapper objectMapper;
     private final OssUrlBuilder ossUrlBuilder;
-    private final BookServiceClient bookServiceClient;
-    private final UserServiceClient userServiceClient;
+    private final BookClient bookServiceClient;
+    private final UserClient userServiceClient;
 
     private <T> T unwrap(Result<T> result) {
         if (result == null || result.getCode() != ResultCode.SUCCESS.getCode()) {
@@ -99,7 +99,7 @@ public class SeckillServiceImpl implements SeckillService {
     @Transactional
     public SeckillBuyResultVO buy(Long userId, SeckillBuyDTO dto) {
         SeckillActivity activity = validateActivity(dto.getActivityId());
-        AddressVO address = validateAddress(userId, dto.getAddressId());
+        AddressDTO address = validateAddress(userId, dto.getAddressId());
 
         String stockKey = SeckillActivityServiceImpl.STOCK_KEY_PREFIX + activity.getId();
         String boughtKey = SeckillActivityServiceImpl.BOUGHT_KEY_PREFIX + activity.getId();
@@ -160,7 +160,7 @@ public class SeckillServiceImpl implements SeckillService {
     @Transactional
     public SeckillBuyResultVO createOrderFromQueue(Long userId, Long activityId, Long addressId) {
         SeckillActivity activity = validateActivity(activityId);
-        AddressVO address = validateAddress(userId, addressId);
+        AddressDTO address = validateAddress(userId, addressId);
         return doCreateOrder(userId, activity, address);
     }
 
@@ -179,8 +179,8 @@ public class SeckillServiceImpl implements SeckillService {
         return activity;
     }
 
-    private AddressVO validateAddress(Long userId, Long addressId) {
-        AddressVO address = unwrap(userServiceClient.getAddress(addressId));
+    private AddressDTO validateAddress(Long userId, Long addressId) {
+        AddressDTO address = unwrap(userServiceClient.getAddress(addressId));
         if (address == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "收货地址不存在");
         }
@@ -188,8 +188,8 @@ public class SeckillServiceImpl implements SeckillService {
         return address;
     }
 
-    private SeckillBuyResultVO doCreateOrder(Long userId, SeckillActivity activity, AddressVO address) {
-        BookDetailVO book = unwrap(bookServiceClient.getBook(activity.getBookId()));
+    private SeckillBuyResultVO doCreateOrder(Long userId, SeckillActivity activity, AddressDTO address) {
+        BookDetailDTO book = unwrap(bookServiceClient.getBook(activity.getBookId()));
         if (book == null || book.getDeleted() == 1 || book.getStatus() != 1) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
@@ -263,7 +263,7 @@ public class SeckillServiceImpl implements SeckillService {
     @Override
     public SeckillOrderVO detail(Long userId, String orderNo) {
         SeckillOrder order = requireOwnOrder(userId, orderNo);
-        BookDetailVO book = unwrap(bookServiceClient.getBook(order.getBookId()));
+        BookDetailDTO book = unwrap(bookServiceClient.getBook(order.getBookId()));
         return toVO(order, book);
     }
 
@@ -277,7 +277,7 @@ public class SeckillServiceImpl implements SeckillService {
             w.eq(SeckillOrder::getStatus, status);
         }
         Page<SeckillOrder> p = seckillOrderMapper.selectPage(new Page<>(page, size), w);
-        Map<Long, BookDetailVO> bookMap = loadBookMap(p.getRecords());
+        Map<Long, BookDetailDTO> bookMap = loadBookMap(p.getRecords());
         List<SeckillOrderVO> list = p.getRecords().stream()
             .map(o -> toVO(o, bookMap.get(o.getBookId())))
             .collect(Collectors.toList());
@@ -376,7 +376,7 @@ public class SeckillServiceImpl implements SeckillService {
     }
 
     @SneakyThrows
-    private String toJsonSnapshot(AddressVO address) {
+    private String toJsonSnapshot(AddressDTO address) {
         Map<String, Object> map = Map.of(
             "receiver", address.getReceiver(),
             "phone", address.getPhone(),
@@ -388,14 +388,14 @@ public class SeckillServiceImpl implements SeckillService {
         return objectMapper.writeValueAsString(map);
     }
 
-    private Map<Long, BookDetailVO> loadBookMap(List<SeckillOrder> orders) {
+    private Map<Long, BookDetailDTO> loadBookMap(List<SeckillOrder> orders) {
         if (orders.isEmpty()) {
             return new HashMap<>();
         }
         Set<Long> bookIds = orders.stream().map(SeckillOrder::getBookId).collect(Collectors.toCollection(HashSet::new));
-        Map<Long, BookDetailVO> map = new HashMap<>();
+        Map<Long, BookDetailDTO> map = new HashMap<>();
         for (Long id : bookIds) {
-            Result<BookDetailVO> result = bookServiceClient.getBook(id);
+            Result<BookDetailDTO> result = bookServiceClient.getBook(id);
             if (result != null && result.getCode() == ResultCode.SUCCESS.getCode() && result.getData() != null) {
                 map.put(id, result.getData());
             }
@@ -403,7 +403,7 @@ public class SeckillServiceImpl implements SeckillService {
         return map;
     }
 
-    private SeckillOrderVO toVO(SeckillOrder o, BookDetailVO book) {
+    private SeckillOrderVO toVO(SeckillOrder o, BookDetailDTO book) {
         SeckillOrderVO vo = new SeckillOrderVO();
         vo.setId(o.getId());
         vo.setOrderNo(o.getOrderNo());

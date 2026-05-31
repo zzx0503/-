@@ -1,6 +1,6 @@
 package com.bookstore.domain.vo.ai;
 
-import com.bookstore.domain.vo.book.BookListVO;
+import com.bookstore.api.book.dto.BookListDTO;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -13,6 +13,6 @@ public class ChatMessageVO {
     private Long sessionId;
     private String role;
     private String content;
-    private List<BookListVO> referencedBooks;
+    private List<BookListDTO> referencedBooks;
     private LocalDateTime createTime;
 }

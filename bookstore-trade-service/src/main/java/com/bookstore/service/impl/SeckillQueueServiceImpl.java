@@ -1,10 +1,10 @@
 package com.bookstore.service.impl;
 
-import com.bookstore.client.UserServiceClient;
+import com.bookstore.api.user.client.UserClient;
 import com.bookstore.domain.dto.seckill.SeckillBuyDTO;
 import com.bookstore.domain.dto.seckill.SeckillQueueRequestDTO;
 import com.bookstore.domain.po.SeckillActivity;
-import com.bookstore.domain.vo.address.AddressVO;
+import com.bookstore.api.user.dto.AddressDTO;
 import com.bookstore.domain.vo.seckill.SeckillBuyResultVO;
 import com.bookstore.domain.vo.seckill.SeckillQueueStatusVO;
 import com.bookstore.exception.BusinessException;
@@ -69,7 +69,7 @@ public class SeckillQueueServiceImpl implements SeckillQueueService {
     private final ObjectMapper objectMapper;
     private final SeckillService seckillService;
     private final SeckillActivityMapper seckillActivityMapper;
-    private final UserServiceClient userServiceClient;
+    private final UserClient userServiceClient;
 
     @Override
     public String enqueue(Long userId, SeckillBuyDTO dto) {
@@ -85,11 +85,11 @@ public class SeckillQueueServiceImpl implements SeckillQueueService {
             throw new BusinessException(ResultCode.SECKILL_NOT_RUNNING);
         }
 
-        Result<AddressVO> addressResult = userServiceClient.getAddress(dto.getAddressId());
+        Result<AddressDTO> addressResult = userServiceClient.getAddress(dto.getAddressId());
         if (addressResult == null || addressResult.getCode() != ResultCode.SUCCESS.getCode()) {
             throw new BusinessException(ResultCode.NOT_FOUND, "收货地址不存在");
         }
-        AddressVO address = addressResult.getData();
+        AddressDTO address = addressResult.getData();
         if (address == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "收货地址不存在");
         }

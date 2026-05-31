@@ -2,9 +2,9 @@ package com.bookstore.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bookstore.client.BookServiceClient;
+import com.bookstore.api.book.client.BookClient;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.domain.po.Favorite;
-import com.bookstore.domain.vo.book.BookDetailVO;
 import com.bookstore.domain.vo.favorite.FavoriteVO;
 import com.bookstore.exception.BusinessException;
 import com.bookstore.mapper.FavoriteMapper;
@@ -31,18 +31,18 @@ import java.util.stream.Collectors;
 public class FavoriteServiceImpl implements FavoriteService {
 
     private final FavoriteMapper favoriteMapper;
-    private final BookServiceClient bookServiceClient;
+    private final BookClient bookClient;
     private final RedissonClient redissonClient;
     private final OssUrlBuilder ossUrlBuilder;
 
     private static final String REDIS_KEY_PREFIX = "favorite:user:";
 
-    private BookDetailVO requireBook(Long bookId) {
-        Result<BookDetailVO> result = bookServiceClient.getBook(bookId);
+    private BookDetailDTO requireBook(Long bookId) {
+        Result<BookDetailDTO> result = bookClient.getBook(bookId);
         if (result == null || result.getCode() != ResultCode.SUCCESS.getCode()) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
-        BookDetailVO book = result.getData();
+        BookDetailDTO book = result.getData();
         if (book == null || Integer.valueOf(1).equals(book.getDeleted())) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
@@ -135,13 +135,13 @@ public class FavoriteServiceImpl implements FavoriteService {
         }
 
         List<Long> bookIds = records.stream().map(Favorite::getBookId).distinct().collect(Collectors.toList());
-        Map<Long, BookDetailVO> bookMap = bookIds.stream()
+        Map<Long, BookDetailDTO> bookMap = bookIds.stream()
             .map(id -> {
-                Result<BookDetailVO> r = bookServiceClient.getBook(id);
+                Result<BookDetailDTO> r = bookClient.getBook(id);
                 return r != null && r.getCode() == ResultCode.SUCCESS.getCode() ? r.getData() : null;
             })
             .filter(Objects::nonNull)
-            .collect(Collectors.toMap(BookDetailVO::getId, b -> b));
+            .collect(Collectors.toMap(BookDetailDTO::getId, b -> b));
 
         List<FavoriteVO> vos = records.stream()
             .map(f -> toVO(f, bookMap.get(f.getBookId())))
@@ -149,7 +149,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         return PageResult.of(vos, p.getTotal(), p.getCurrent(), p.getSize());
     }
 
-    private FavoriteVO toVO(Favorite f, BookDetailVO b) {
+    private FavoriteVO toVO(Favorite f, BookDetailDTO b) {
         FavoriteVO vo = new FavoriteVO();
         vo.setId(f.getId());
         vo.setBookId(f.getBookId());

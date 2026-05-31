@@ -30,7 +30,6 @@
         <dependency>
             <groupId>io.github.openfeign</groupId>
             <artifactId>feign-okhttp</artifactId>
-            <version>13.2.1</version>
         </dependency>
         <!-- LoadBalancer -->
         <dependency>

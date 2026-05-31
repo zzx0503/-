@@ -5,7 +5,7 @@ import com.bookstore.exception.BusinessException;
 import com.bookstore.response.ResultCode;
 import com.bookstore.domain.dto.address.AddressFormDTO;
 import com.bookstore.domain.po.Address;
-import com.bookstore.domain.vo.address.AddressVO;
+import com.bookstore.api.user.dto.AddressDTO;
 import com.bookstore.mapper.AddressMapper;
 import com.bookstore.service.AddressService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ public class AddressServiceImpl implements AddressService {
     private final AddressMapper addressMapper;
 
     @Override
-    public List<AddressVO> list(Long userId) {
+    public List<AddressDTO> list(Long userId) {
         List<Address> rows = addressMapper.selectList(
             new LambdaQueryWrapper<Address>()
                 .eq(Address::getUserId, userId)
@@ -33,7 +33,7 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     @Transactional
-    public AddressVO create(Long userId, AddressFormDTO dto) {
+    public AddressDTO create(Long userId, AddressFormDTO dto) {
         Address a = new Address();
         a.setUserId(userId);
         a.setReceiver(dto.getReceiver());
@@ -59,7 +59,7 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     @Transactional
-    public AddressVO update(Long userId, Long id, AddressFormDTO dto) {
+    public AddressDTO update(Long userId, Long id, AddressFormDTO dto) {
         Address a = requireOwn(userId, id);
 
         Address patch = new Address();
@@ -130,8 +130,8 @@ public class AddressServiceImpl implements AddressService {
         return a;
     }
 
-    AddressVO toVO(Address a) {
-        AddressVO v = new AddressVO();
+    AddressDTO toVO(Address a) {
+        AddressDTO v = new AddressDTO();
         v.setId(a.getId());
         v.setReceiver(a.getReceiver());
         v.setPhone(a.getPhone());

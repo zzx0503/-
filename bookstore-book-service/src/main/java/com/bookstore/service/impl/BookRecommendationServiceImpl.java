@@ -3,7 +3,7 @@ package com.bookstore.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bookstore.domain.po.Book;
 import com.bookstore.domain.po.Favorite;
-import com.bookstore.domain.vo.book.BookListVO;
+import com.bookstore.api.book.dto.BookListDTO;
 import com.bookstore.mapper.BookMapper;
 import com.bookstore.mapper.FavoriteMapper;
 import com.bookstore.service.BookRecommendationService;
@@ -25,7 +25,7 @@ public class BookRecommendationServiceImpl implements BookRecommendationService 
     private final OssUrlBuilder ossUrlBuilder;
 
     @Override
-    public List<BookListVO> recommendForUser(Long userId, Integer limit) {
+    public List<BookListDTO> recommendForUser(Long userId, Integer limit) {
         if (limit == null || limit < 1) limit = 10;
 
         Set<Long> excludeBookIds = getUserInteractedBookIds(userId);
@@ -64,7 +64,7 @@ public class BookRecommendationServiceImpl implements BookRecommendationService 
     }
 
     @Override
-    public List<BookListVO> similarBooks(Long bookId, Integer limit) {
+    public List<BookListDTO> similarBooks(Long bookId, Integer limit) {
         if (limit == null || limit < 1) limit = 6;
         Book source = bookMapper.selectById(bookId);
         if (source == null || source.getDeleted() == 1 || source.getStatus() != 1) {
@@ -145,7 +145,7 @@ public class BookRecommendationServiceImpl implements BookRecommendationService 
         return ids;
     }
 
-    private List<BookListVO> hotBooks(Integer limit, Set<Long> excludeBookIds) {
+    private List<BookListDTO> hotBooks(Integer limit, Set<Long> excludeBookIds) {
         List<Book> books = bookMapper.selectList(
             new LambdaQueryWrapper<Book>()
                 .eq(Book::getStatus, 1)
@@ -157,8 +157,8 @@ public class BookRecommendationServiceImpl implements BookRecommendationService 
         return books.stream().map(this::toListVO).collect(Collectors.toList());
     }
 
-    private BookListVO toListVO(Book b) {
-        BookListVO vo = new BookListVO();
+    private BookListDTO toListVO(Book b) {
+        BookListDTO vo = new BookListDTO();
         vo.setId(b.getId());
         vo.setTitle(b.getTitle());
         vo.setSubtitle(b.getSubtitle());

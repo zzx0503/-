@@ -1,8 +1,8 @@
 package com.bookstore.controller;
 
 import com.bookstore.domain.po.OrderMain;
-import com.bookstore.domain.vo.order.OrderDetailVO;
-import com.bookstore.domain.vo.order.OrderItemVO;
+import com.bookstore.api.trade.dto.OrderDetailDTO;
+import com.bookstore.api.trade.dto.OrderItemDTO;
 import com.bookstore.mapper.OrderItemMapper;
 import com.bookstore.mapper.OrderMainMapper;
 import com.bookstore.response.Result;
@@ -24,7 +24,7 @@ public class InternalOrderController {
     private final OrderItemMapper orderItemMapper;
 
     @GetMapping("/{orderNo}")
-    public Result<OrderDetailVO> getOrder(@PathVariable String orderNo) {
+    public Result<OrderDetailDTO> getOrder(@PathVariable String orderNo) {
         OrderMain order = orderMainMapper.selectOne(
             new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OrderMain>()
                 .eq(OrderMain::getOrderNo, orderNo)
@@ -39,7 +39,7 @@ public class InternalOrderController {
                 .eq(com.bookstore.domain.po.OrderItem::getOrderId, order.getId())
         );
 
-        OrderDetailVO vo = new OrderDetailVO();
+        OrderDetailDTO vo = new OrderDetailDTO();
         vo.setId(order.getId());
         vo.setUserId(order.getUserId());
         vo.setOrderNo(order.getOrderNo());
@@ -59,8 +59,8 @@ public class InternalOrderController {
         return Result.success(vo);
     }
 
-    private OrderItemVO toItemVO(com.bookstore.domain.po.OrderItem item) {
-        OrderItemVO vo = new OrderItemVO();
+    private OrderItemDTO toItemVO(com.bookstore.domain.po.OrderItem item) {
+        OrderItemDTO vo = new OrderItemDTO();
         vo.setId(item.getId());
         vo.setBookId(item.getBookId());
         vo.setBookTitle(item.getBookTitle());
@@ -72,7 +72,7 @@ public class InternalOrderController {
     }
 
     @GetMapping("/by-id/{id}")
-    public Result<OrderDetailVO> getOrderById(@PathVariable Long id) {
+    public Result<OrderDetailDTO> getOrderById(@PathVariable Long id) {
         OrderMain order = orderMainMapper.selectById(id);
         if (order == null || (order.getDeleted() != null && order.getDeleted() == 1)) {
             return Result.fail(com.bookstore.response.ResultCode.NOT_FOUND);
@@ -83,7 +83,7 @@ public class InternalOrderController {
                 .eq(com.bookstore.domain.po.OrderItem::getOrderId, order.getId())
         );
 
-        OrderDetailVO vo = new OrderDetailVO();
+        OrderDetailDTO vo = new OrderDetailDTO();
         vo.setId(order.getId());
         vo.setUserId(order.getUserId());
         vo.setOrderNo(order.getOrderNo());

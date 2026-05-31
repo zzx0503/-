@@ -4,7 +4,7 @@ import com.bookstore.anno.LoginRequired;
 import com.bookstore.context.UserContext;
 import com.bookstore.domain.dto.order.CreateOrderDTO;
 import com.bookstore.domain.dto.order.PayOrderDTO;
-import com.bookstore.domain.vo.order.OrderDetailVO;
+import com.bookstore.api.trade.dto.OrderDetailDTO;
 import com.bookstore.domain.vo.order.OrderVO;
 import com.bookstore.response.PageResult;
 import com.bookstore.response.Result;
@@ -90,7 +90,7 @@ public class OrderController {
      * @return 订单详细信息
      */
     @GetMapping("/{orderNo}")
-    public Result<OrderDetailVO> detail(@PathVariable String orderNo) {
+    public Result<OrderDetailDTO> detail(@PathVariable String orderNo) {
         return Result.success(orderService.detail(UserContext.requireUserId(), orderNo));
     }
 

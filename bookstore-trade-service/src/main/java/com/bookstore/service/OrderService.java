@@ -2,7 +2,7 @@ package com.bookstore.service;
 
 import com.bookstore.domain.dto.order.CreateOrderDTO;
 import com.bookstore.domain.dto.order.PayOrderDTO;
-import com.bookstore.domain.vo.order.OrderDetailVO;
+import com.bookstore.api.trade.dto.OrderDetailDTO;
 import com.bookstore.domain.vo.order.OrderVO;
 import com.bookstore.response.PageResult;
 
@@ -16,7 +16,7 @@ public interface OrderService {
 
     void confirmReceive(Long userId, String orderNo);
 
-    OrderDetailVO detail(Long userId, String orderNo);
+    OrderDetailDTO detail(Long userId, String orderNo);
 
     PageResult<OrderVO> listMyOrders(Long userId, String status, Integer page, Integer size);
 

@@ -13,8 +13,8 @@ import com.bookstore.domain.po.OrderMain;
 import com.bookstore.domain.po.UserCoupon;
 import com.bookstore.domain.vo.address.AddressVO;
 import com.bookstore.domain.vo.book.BookDetailVO;
-import com.bookstore.domain.vo.order.OrderDetailVO;
-import com.bookstore.domain.vo.order.OrderItemVO;
+import com.bookstore.api.trade.dto.OrderDetailDTO;
+import com.bookstore.api.trade.dto.OrderItemDTO;
 import com.bookstore.domain.vo.order.OrderVO;
 import com.bookstore.exception.BusinessException;
 import com.bookstore.mapper.CartItemMapper;
@@ -236,7 +236,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public OrderDetailVO detail(Long userId, String orderNo) {
+    public OrderDetailDTO detail(Long userId, String orderNo) {
         OrderMain order = requireOwnOrder(userId, orderNo);
         return toDetailVO(order);
     }
@@ -346,8 +346,8 @@ public class OrderServiceImpl implements OrderService {
         return vo;
     }
 
-    private OrderDetailVO toDetailVO(OrderMain o) {
-        OrderDetailVO vo = new OrderDetailVO();
+    private OrderDetailDTO toDetailVO(OrderMain o) {
+        OrderDetailDTO vo = new OrderDetailDTO();
         vo.setId(o.getId());
         vo.setOrderNo(o.getOrderNo());
         vo.setTotalAmount(o.getTotalAmount());
@@ -370,8 +370,8 @@ public class OrderServiceImpl implements OrderService {
         return vo;
     }
 
-    private OrderItemVO toItemVO(OrderItem oi) {
-        OrderItemVO vo = new OrderItemVO();
+    private OrderItemDTO toItemVO(OrderItem oi) {
+        OrderItemDTO vo = new OrderItemDTO();
         vo.setId(oi.getId());
         vo.setBookId(oi.getBookId());
         vo.setBookTitle(oi.getBookTitle());

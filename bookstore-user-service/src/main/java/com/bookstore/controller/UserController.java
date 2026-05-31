@@ -8,7 +8,7 @@ import com.bookstore.domain.dto.user.ChangePasswordDTO;
 import com.bookstore.domain.dto.user.UpdateAvatarDTO;
 import com.bookstore.domain.dto.user.UpdateProfileDTO;
 import com.bookstore.domain.vo.user.AvatarPresetVO;
-import com.bookstore.domain.vo.user.UserProfileVO;
+import com.bookstore.api.user.dto.UserProfileDTO;
 import com.bookstore.service.OSSService;
 import com.bookstore.service.UserService;
 import com.bookstore.utils.OssUrlBuilder;
@@ -39,12 +39,12 @@ public class UserController {
     private final AvatarProperties avatarProperties;
 
     @GetMapping("/me")
-    public Result<UserProfileVO> me() {
+    public Result<UserProfileDTO> me() {
         return Result.success(userService.getProfile(UserContext.requireUserId()));
     }
 
     @PutMapping("/me")
-    public Result<UserProfileVO> updateMe(@Valid @RequestBody UpdateProfileDTO dto) {
+    public Result<UserProfileDTO> updateMe(@Valid @RequestBody UpdateProfileDTO dto) {
         return Result.success(userService.updateProfile(UserContext.requireUserId(), dto));
     }
 
@@ -55,12 +55,12 @@ public class UserController {
     }
 
     @PutMapping("/me/avatar")
-    public Result<UserProfileVO> updateAvatar(@Valid @RequestBody UpdateAvatarDTO dto) {
+    public Result<UserProfileDTO> updateAvatar(@Valid @RequestBody UpdateAvatarDTO dto) {
         return Result.success(userService.updateAvatar(UserContext.requireUserId(), dto.getAvatarKey()));
     }
 
     @PostMapping("/me/avatar/upload")
-    public Result<UserProfileVO> uploadAvatar(@RequestParam("file") MultipartFile file) {
+    public Result<UserProfileDTO> uploadAvatar(@RequestParam("file") MultipartFile file) {
         String avatarKey = ossService.uploadAvatar(UserContext.requireUserId(), file);
         return Result.success(userService.updateAvatar(UserContext.requireUserId(), avatarKey));
     }

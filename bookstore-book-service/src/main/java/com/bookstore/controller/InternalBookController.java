@@ -1,6 +1,6 @@
 package com.bookstore.controller;
 
-import com.bookstore.domain.vo.book.BookDetailVO;
+import com.bookstore.api.book.dto.BookDetailDTO;
 import com.bookstore.response.Result;
 import com.bookstore.service.BookService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ public class InternalBookController {
     private final BookService bookService;
 
     @GetMapping("/{id}")
-    public Result<BookDetailVO> getBook(@PathVariable Long id) {
+    public Result<BookDetailDTO> getBook(@PathVariable Long id) {
         return Result.success(bookService.detail(id));
     }
 

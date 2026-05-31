@@ -37,6 +37,17 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+feign:
+  okhttp:
+    enabled: true
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+  circuitbreaker:
+    enabled: true
+
 jwt:
   secret: YOUR_JWT_SECRET
   access-token-ttl: 2h

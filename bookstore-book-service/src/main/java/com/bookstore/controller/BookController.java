@@ -1,8 +1,8 @@
 package com.bookstore.controller;
 
 import com.bookstore.domain.dto.book.BookQueryDTO;
-import com.bookstore.domain.vo.book.BookDetailVO;
-import com.bookstore.domain.vo.book.BookListVO;
+import com.bookstore.api.book.dto.BookDetailDTO;
+import com.bookstore.api.book.dto.BookListDTO;
 import com.bookstore.response.PageResult;
 import com.bookstore.response.Result;
 import com.bookstore.service.BookRecommendationService;
@@ -38,7 +38,7 @@ public class BookController {
      * @return 分页图书列表
      */
     @GetMapping
-    public Result<PageResult<BookListVO>> list(BookQueryDTO query) {
+    public Result<PageResult<BookListDTO>> list(BookQueryDTO query) {
         return Result.success(bookService.list(query));
     }
 
@@ -48,7 +48,7 @@ public class BookController {
      * @return 图书详细信息
      */
     @GetMapping("/{id}")
-    public Result<BookDetailVO> detail(@PathVariable Long id) {
+    public Result<BookDetailDTO> detail(@PathVariable Long id) {
         return Result.success(bookService.detail(id));
     }
 
@@ -58,7 +58,7 @@ public class BookController {
      * @return 热销图书列表
      */
     @GetMapping("/hot")
-    public Result<List<BookListVO>> hot(@RequestParam(defaultValue = "10") Integer limit) {
+    public Result<List<BookListDTO>> hot(@RequestParam(defaultValue = "10") Integer limit) {
         return Result.success(bookService.hot(limit));
     }
 
@@ -68,7 +68,7 @@ public class BookController {
      * @return 新书列表
      */
     @GetMapping("/new")
-    public Result<List<BookListVO>> newest(@RequestParam(defaultValue = "10") Integer limit) {
+    public Result<List<BookListDTO>> newest(@RequestParam(defaultValue = "10") Integer limit) {
         return Result.success(bookService.newest(limit));
     }
 
@@ -80,7 +80,7 @@ public class BookController {
      * @return 搜索结果分页列表
      */
     @GetMapping("/search")
-    public Result<PageResult<BookListVO>> search(
+    public Result<PageResult<BookListDTO>> search(
             @RequestParam String keyword,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
@@ -96,7 +96,7 @@ public class BookController {
      */
     @Operation(summary = "相似图书")
     @GetMapping("/{id}/similar")
-    public Result<List<BookListVO>> similar(@PathVariable Long id, @RequestParam(defaultValue = "6") Integer limit) {
+    public Result<List<BookListDTO>> similar(@PathVariable Long id, @RequestParam(defaultValue = "6") Integer limit) {
         return Result.success(bookRecommendationService.similarBooks(id, limit));
     }
 }

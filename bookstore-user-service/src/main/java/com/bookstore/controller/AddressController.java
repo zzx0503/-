@@ -4,7 +4,7 @@ import com.bookstore.anno.LoginRequired;
 import com.bookstore.context.UserContext;
 import com.bookstore.response.Result;
 import com.bookstore.domain.dto.address.AddressFormDTO;
-import com.bookstore.domain.vo.address.AddressVO;
+import com.bookstore.api.user.dto.AddressDTO;
 import com.bookstore.service.AddressService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,17 +30,17 @@ public class AddressController {
     private final AddressService addressService;
 
     @GetMapping
-    public Result<List<AddressVO>> list() {
+    public Result<List<AddressDTO>> list() {
         return Result.success(addressService.list(UserContext.requireUserId()));
     }
 
     @PostMapping
-    public Result<AddressVO> create(@Valid @RequestBody AddressFormDTO dto) {
+    public Result<AddressDTO> create(@Valid @RequestBody AddressFormDTO dto) {
         return Result.success(addressService.create(UserContext.requireUserId(), dto));
     }
 
     @PutMapping("/{id}")
-    public Result<AddressVO> update(@PathVariable Long id,
+    public Result<AddressDTO> update(@PathVariable Long id,
                                     @Valid @RequestBody AddressFormDTO dto) {
         return Result.success(addressService.update(UserContext.requireUserId(), id, dto));
     }

@@ -7,8 +7,8 @@ import com.bookstore.domain.dto.book.BookFormDTO;
 import com.bookstore.domain.dto.book.BookQueryDTO;
 import com.bookstore.domain.po.Book;
 import com.bookstore.domain.po.Category;
-import com.bookstore.domain.vo.book.BookDetailVO;
-import com.bookstore.domain.vo.book.BookListVO;
+import com.bookstore.api.book.dto.BookDetailDTO;
+import com.bookstore.api.book.dto.BookListDTO;
 import com.bookstore.domain.vo.book.BookVO;
 import com.bookstore.exception.BusinessException;
 import com.bookstore.mapper.BookMapper;
@@ -36,7 +36,7 @@ public class BookServiceImpl implements BookService {
     private final OssUrlBuilder ossUrlBuilder;
 
     @Override
-    public PageResult<BookListVO> list(BookQueryDTO query) {
+    public PageResult<BookListDTO> list(BookQueryDTO query) {
         // list books with pagination
         LambdaQueryWrapper<Book> w = new LambdaQueryWrapper<Book>();
         w.eq(Book::getDeleted, 0).eq(Book::getStatus, 1);
@@ -75,12 +75,12 @@ public class BookServiceImpl implements BookService {
         Page<Book> page = bookMapper.selectPage(
             new Page<>(query.getPage().longValue(), query.getSize().longValue()), w
         );
-        List<BookListVO> vos = page.getRecords().stream()
+        List<BookListDTO> vos = page.getRecords().stream()
             .map(this::toListVO).collect(Collectors.toList());
 
         if (!vos.isEmpty()) {
             java.util.Set<Long> catIds = vos.stream()
-                .map(BookListVO::getCategoryId)
+                .map(BookListDTO::getCategoryId)
                 .filter(java.util.Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
             if (!catIds.isEmpty()) {
@@ -95,12 +95,12 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Cacheable(cacheNames = "book:detail", key = "#id")
-    public BookDetailVO detail(Long id) {
+    public BookDetailDTO detail(Long id) {
         Book b = bookMapper.selectById(id);
         if (b == null || b.getDeleted() == 1 || b.getStatus() != 1) {
             throw new BusinessException(ResultCode.BOOK_NOT_FOUND);
         }
-        BookDetailVO vo = toDetailVO(b);
+        BookDetailDTO vo = toDetailVO(b);
 
         List<Book> related = bookMapper.selectList(
             new LambdaQueryWrapper<Book>()
@@ -117,7 +117,7 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Cacheable(cacheNames = "book:hot", key = "#limit != null ? #limit : 10")
-    public List<BookListVO> hot(Integer limit) {
+    public List<BookListDTO> hot(Integer limit) {
         if (limit == null || limit < 1) limit = 10;
         List<Book> rows = bookMapper.selectList(
             new LambdaQueryWrapper<Book>()
@@ -131,7 +131,7 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Cacheable(cacheNames = "book:new", key = "#limit != null ? #limit : 10")
-    public List<BookListVO> newest(Integer limit) {
+    public List<BookListDTO> newest(Integer limit) {
         if (limit == null || limit < 1) limit = 10;
         List<Book> rows = bookMapper.selectList(
             new LambdaQueryWrapper<Book>()
@@ -146,7 +146,7 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @com.bookstore.anno.SearchHistory(type = "TEXT")
-    public PageResult<BookListVO> search(String keyword, Integer page, Integer size) {
+    public PageResult<BookListDTO> search(String keyword, Integer page, Integer size) {
         if (!StringUtils.hasText(keyword)) {
             return PageResult.of(List.of(), 0L, (long) page, (long) size);
         }
@@ -166,7 +166,7 @@ public class BookServiceImpl implements BookService {
             if (rows.isEmpty()) {
                 return list(simpleQuery(kw, page, size));
             }
-            List<BookListVO> vos = rows.stream()
+            List<BookListDTO> vos = rows.stream()
                 .map(this::toListVO).collect(Collectors.toList());
             return manualPage(vos, page, size);
         } catch (Exception e) {
@@ -336,8 +336,8 @@ public class BookServiceImpl implements BookService {
         return b;
     }
 
-    private BookListVO toListVO(Book b) {
-        BookListVO vo = new BookListVO();
+    private BookListDTO toListVO(Book b) {
+        BookListDTO vo = new BookListDTO();
         vo.setId(b.getId());
         vo.setTitle(b.getTitle());
         vo.setSubtitle(b.getSubtitle());
@@ -351,8 +351,8 @@ public class BookServiceImpl implements BookService {
         return vo;
     }
 
-    private BookDetailVO toDetailVO(Book b) {
-        BookDetailVO vo = new BookDetailVO();
+    private BookDetailDTO toDetailVO(Book b) {
+        BookDetailDTO vo = new BookDetailDTO();
         vo.setId(b.getId());
         vo.setIsbn(b.getIsbn());
         vo.setTitle(b.getTitle());
@@ -407,7 +407,7 @@ public class BookServiceImpl implements BookService {
         return q;
     }
 
-    private PageResult<BookListVO> manualPage(List<BookListVO> list, Integer page, Integer size) {
+    private PageResult<BookListDTO> manualPage(List<BookListDTO> list, Integer page, Integer size) {
         int total = list.size();
         int from = (page - 1) * size;
         int to = Math.min(from + size, total);

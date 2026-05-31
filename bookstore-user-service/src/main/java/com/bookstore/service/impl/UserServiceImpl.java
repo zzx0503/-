@@ -6,7 +6,7 @@ import com.bookstore.utils.PasswordUtil;
 import com.bookstore.domain.dto.user.ChangePasswordDTO;
 import com.bookstore.domain.dto.user.UpdateProfileDTO;
 import com.bookstore.domain.po.User;
-import com.bookstore.domain.vo.user.UserProfileVO;
+import com.bookstore.api.user.dto.UserProfileDTO;
 import com.bookstore.mapper.UserMapper;
 import com.bookstore.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,7 @@ public class UserServiceImpl implements UserService {
     private String ossPrefix;
 
     @Override
-    public UserProfileVO getProfile(Long userId) {
+    public UserProfileDTO getProfile(Long userId) {
         User u = userMapper.selectById(userId);
         if (u == null) {
             throw new BusinessException(ResultCode.ACCOUNT_NOT_FOUND);
@@ -32,7 +32,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserProfileVO updateProfile(Long userId, UpdateProfileDTO dto) {
+    public UserProfileDTO updateProfile(Long userId, UpdateProfileDTO dto) {
         User existing = userMapper.selectById(userId);
         if (existing == null) {
             throw new BusinessException(ResultCode.ACCOUNT_NOT_FOUND);
@@ -71,7 +71,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserProfileVO updateAvatar(Long userId, String avatarKey) {
+    public UserProfileDTO updateAvatar(Long userId, String avatarKey) {
         User existing = userMapper.selectById(userId);
         if (existing == null) {
             throw new BusinessException(ResultCode.ACCOUNT_NOT_FOUND);
@@ -85,8 +85,8 @@ public class UserServiceImpl implements UserService {
         return toVO(existing);
     }
 
-    UserProfileVO toVO(User u) {
-        UserProfileVO vo = new UserProfileVO();
+    UserProfileDTO toVO(User u) {
+        UserProfileDTO vo = new UserProfileDTO();
         vo.setId(u.getId());
         vo.setUsername(u.getUsername());
         vo.setPhone(maskPhone(u.getPhone()));

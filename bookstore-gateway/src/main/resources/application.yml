@@ -1,0 +1,57 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 192.168.100.128:8848
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/user/**,/api/auth/**,/api/address/**,/api/wallet/**,/api/checkin/**,/api/favorite/**
+        - id: book-service
+          uri: lb://book-service
+          predicates:
+            - Path=/api/book/**,/api/category/**,/api/review/**,/api/search-history/**
+        - id: trade-service
+          uri: lb://trade-service
+          predicates:
+            - Path=/api/order/**,/api/cart/**,/api/coupons/**,/api/seckill/**
+        - id: ai-service
+          uri: lb://ai-service
+          predicates:
+            - Path=/api/ai/**
+        - id: admin-service
+          uri: lb://admin-service
+          predicates:
+            - Path=/api/admin/operation-logs/**,/api/admin/upload,/api/admin/stats/**
+        - id: book-service-admin
+          uri: lb://book-service
+          predicates:
+            - Path=/api/admin/book/**,/api/admin/category/**,/api/admin/book-covers/**
+        - id: trade-service-admin
+          uri: lb://trade-service
+          predicates:
+            - Path=/api/admin/order/**,/api/admin/seckill-activities/**,/api/admin/coupon-templates/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+
+jwt:
+  secret: YOUR_JWT_SECRET
+
+logging:
+  level:
+    org.springframework.cloud.gateway: debug

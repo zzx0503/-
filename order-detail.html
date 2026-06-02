@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 订单详情</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .od-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 18px 22px;
+      margin-bottom: 16px;
+    }
+    .od-card h3 {
+      font-size: 15px;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+    .od-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    .od-row .k { color: var(--text-secondary); min-width: 80px; }
+    .od-row .v { color: var(--text-main); }
+    .od-status {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #fef0e6;
+      color: #d68a4f;
+    }
+    .od-status.paid { background:#e6f7ed; color:#28a745; }
+    .od-status.shipped { background:#e6f1ff; color:#1d6fff; }
+    .od-status.completed { background:#eee; color:#666; }
+    .od-status.cancelled { background:#fbe9e9; color:#c0392b; }
+
+    .od-items .ir {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .od-items .ir:last-child { border-bottom: none; }
+    .od-items .cover {
+      width: 64px;
+      height: 80px;
+      background-size: cover;
+      background-position: center;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .od-items .info {
+      flex: 1;
+      min-width: 0;
+    }
+    .od-items .t {
+      font-weight: 600;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .od-items .p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+    .od-items .qty { width: 80px; text-align: right; color: var(--text-secondary); font-size: 13px; }
+    .od-items .sub { width: 100px; text-align: right; color: #e74c3c; font-weight: 700; }
+
+    .od-summary {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+    .od-summary .line {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      font-size: 14px;
+      padding: 4px 0;
+    }
+    .od-summary .line .k { color: var(--text-secondary); min-width: 90px; text-align: right; }
+    .od-summary .line .v { min-width: 100px; text-align: right; }
+    .od-summary .line.pay .v {
+      color: #e74c3c;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .od-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+    .od-actions button {
+      padding: 8px 22px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .od-actions .btn-primary { background: var(--primary); color: var(--white); border-color: var(--primary); }
+    .od-actions .btn-danger  { color: #c0392b; border-color: #f0c4be; }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 380px;
+      max-width: 92vw;
+      box-shadow: var(--shadow);
+    }
+    .modal-box h3 { margin-bottom: 14px; }
+    .pay-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .pay-options label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .pay-options label.checked,
+    .pay-options label:hover { border-color: var(--primary); background: #fffaf3; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-actions button {
+      padding: 8px 20px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .modal-actions .btn-confirm { background: var(--primary); color: var(--white); border-color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html"><span>&#x1F464;</span><span>用户中心</span></a>
+        <a class="nav-item" href="home.html"><span>&#x1F3E0;</span><span>首页</span></a>
+        <a class="nav-item" href="favorite.html"><span>&#x1F4D6;</span><span>我的书架</span></a>
+        <a class="nav-item" href="cart.html"><span>&#x1F6D2;</span><span>购物车</span></a>
+        <a class="nav-item active" href="order.html"><span>&#x1F4E6;</span><span>我的订单</span></a>
+        <a class="nav-item" href="promotions.html"><span>&#x1F381;</span><span>优惠</span></a>
+        <a class="nav-item" href="ai-chat.html"><span>&#x1F916;</span><span>万事通</span></a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span><span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4E6; 订单详情</h1>
+        <span style="color:var(--text-secondary);font-size:14px"><a href="order.html">返回订单列表</a></span>
+      </div>
+      <div class="main-body" id="content">
+        <div style="text-align:center;color:var(--text-secondary);padding:60px 0">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="payModal">
+    <div class="modal-box">
+      <h3>选择支付方式</h3>
+      <div class="pay-options" id="payOptions">
+        <label><input type="radio" name="pm" value="BALANCE" checked> 余额支付</label>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closePay()">取消</button>
+        <button class="btn-confirm" onclick="doPay()">确认支付</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) location.href = 'index.html';
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    const params = new URLSearchParams(location.search);
+    const orderNo = params.get('orderNo');
+    if (!orderNo) { alert('参数缺失'); location.href = 'order.html'; }
+
+    const STATUS_LABEL = { PENDING_PAY:'待付款', PAID:'待发货', SHIPPED:'待收货', COMPLETED:'已完成', CANCELLED:'已取消' };
+    const STATUS_CLASS = { PAID:'paid', SHIPPED:'shipped', COMPLETED:'completed', CANCELLED:'cancelled' };
+
+    async function loadOrder() {
+      const result = await api('/api/order/' + orderNo);
+      const c = document.getElementById('content');
+      if (result.code !== 200 || !result.data) {
+        c.innerHTML = `<div class="empty-orders" style="text-align:center;padding:60px 0;color:var(--text-secondary)">${result.msg || '订单不存在'}</div>`;
+        return;
+      }
+      const d = result.data;
+      const cls = STATUS_CLASS[d.status] || '';
+      const label = STATUS_LABEL[d.status] || d.status;
+      const items = (d.items || []).map(it => `
+        <div class="ir">
+          <div class="cover" style="background-image:url('${it.bookCover || `https://picsum.photos/seed/${it.bookId}/200/250`}')" onclick="location.href='detail.html?id=${it.bookId}'"></div>
+          <div class="info">
+            <div class="t" onclick="location.href='detail.html?id=${it.bookId}'">${escapeHtml(it.bookTitle)}</div>
+            <div class="p">单价 ¥${Number(it.unitPrice).toFixed(2)}</div>
+          </div>
+          <div class="qty">× ${it.quantity}</div>
+          <div class="sub">¥${Number(it.subtotal).toFixed(2)}</div>
+        </div>
+      `).join('');
+
+      const addr = parseAddr(d.addressSnapshot);
+
+      c.innerHTML = `
+        <div class="od-card">
+          <div class="od-row" style="justify-content:space-between;align-items:center">
+            <div>
+              <div class="od-row"><span class="k">订单号</span><span class="v">${d.orderNo}</span></div>
+              <div class="od-row"><span class="k">下单时间</span><span class="v">${(d.createTime || '').replace('T',' ')}</span></div>
+              ${d.payTime ? `<div class="od-row"><span class="k">支付时间</span><span class="v">${(d.payTime).replace('T',' ')}</span></div>` : ''}
+              ${d.shipTime ? `<div class="od-row"><span class="k">发货时间</span><span class="v">${(d.shipTime).replace('T',' ')}</span></div>` : ''}
+              ${d.completeTime ? `<div class="od-row"><span class="k">完成时间</span><span class="v">${(d.completeTime).replace('T',' ')}</span></div>` : ''}
+            </div>
+            <span class="od-status ${cls}">${label}</span>
+          </div>
+        </div>
+
+        <div class="od-card">
+          <h3>收货信息</h3>
+          ${addr
+            ? `<div class="od-row"><span class="k">收件人</span><span class="v">${escapeHtml(addr.receiver)} ${escapeHtml(addr.phone || '')}</span></div>
+               <div class="od-row"><span class="k">收货地址</span><span class="v">${escapeHtml((addr.province||'') + ' ' + (addr.city||'') + ' ' + (addr.district||'') + ' ' + (addr.detailAddress||addr.addressDetail||''))}</span></div>`
+            : '<div style="color:var(--text-secondary)">无地址快照</div>'}
+        </div>
+
+        <div class="od-card">
+          <h3>商品清单</h3>
+          <div class="od-items">${items || '<div style="color:var(--text-secondary)">无商品</div>'}</div>
+          <div class="od-summary">
+            <div class="line"><span class="k">商品总额</span><span class="v">¥${Number(d.totalAmount).toFixed(2)}</span></div>
+            ${d.discountAmount ? `<div class="line"><span class="k">优惠</span><span class="v">- ¥${Number(d.discountAmount).toFixed(2)}</span></div>` : ''}
+            <div class="line pay"><span class="k">实付金额</span><span class="v">¥${Number(d.payAmount).toFixed(2)}</span></div>
+          </div>
+          <div class="od-actions">${renderActions(d)}</div>
+        </div>
+      `;
+    }
+
+    function parseAddr(s) {
+      if (!s) return null;
+      try { return JSON.parse(s); }
+      catch (e) { return { receiver: '', detailAddress: s }; }
+    }
+
+    function renderActions(d) {
+      switch (d.status) {
+        case 'PENDING_PAY':
+          return `<button class="btn-danger" onclick="cancelOrder()">取消订单</button><button class="btn-primary" onclick="openPay()">立即支付</button>`;
+        case 'SHIPPED':
+          return `<button class="btn-primary" onclick="confirmReceive()">确认收货</button>`;
+        default:
+          return `<button onclick="location.href='order.html'">返回列表</button>`;
+      }
+    }
+
+    function openPay() { document.getElementById('payModal').classList.add('active'); }
+    function closePay() { document.getElementById('payModal').classList.remove('active'); }
+
+    async function doPay() {
+      const checked = document.querySelector('input[name="pm"]:checked');
+      const method = checked ? checked.value : 'BALANCE';
+      const result = await api('/api/order/' + orderNo + '/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payMethod: method })
+      });
+      if (result.code === 200) {
+        closePay();
+        alert('支付成功');
+        loadOrder();
+      } else {
+        alert(result.msg || '支付失败');
+      }
+    }
+
+    async function cancelOrder() {
+      if (!confirm('确定取消该订单？')) return;
+      const result = await api('/api/order/' + orderNo + '/cancel', { method: 'PUT' });
+      if (result.code === 200) { alert('已取消'); loadOrder(); }
+      else alert(result.msg || '取消失败');
+    }
+
+    async function confirmReceive() {
+      if (!confirm('确认已收到货物？')) return;
+      const result = await api('/api/order/' + orderNo + '/confirm', { method: 'PUT' });
+      if (result.code === 200) { alert('确认收货成功'); loadOrder(); }
+      else alert(result.msg || '操作失败');
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function loadUser() {
+      try {
+        const result = await api('/api/user/me');
+        if (result.code === 200) {
+          const name = result.data.nickname || result.data.username;
+          document.getElementById('sideName').textContent = name;
+          document.getElementById('sideRole').textContent = result.data.role || 'USER';
+          if (result.data.role === 'ADMIN') document.getElementById('adminNav').style.display = 'flex';
+        } else logout();
+      } catch (e) { document.getElementById('sideName').textContent = '未知'; }
+    }
+    function logout() { localStorage.clear(); location.href = 'index.html'; }
+
+    loadUser();
+    loadOrder();
+  </script>
+</body>
+</html>

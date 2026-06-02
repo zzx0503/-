@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 首页</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .book-card { position: relative; }
+    .book-fav-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.9);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      transition: all .2s;
+      z-index: 2;
+    }
+    .book-fav-btn:hover { background: #fff0f0; color: #e74c3c; }
+    .book-fav-btn.active { color: #e74c3c; background: #fff0f0; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html">
+          <span>&#x1F464;</span>
+          <span>用户中心</span>
+        </a>
+        <a class="nav-item active" href="home.html">
+          <span>&#x1F3E0;</span>
+          <span>首页</span>
+        </a>
+        <a class="nav-item" href="favorite.html">
+          <span>&#x1F4D6;</span>
+          <span>我的书架</span>
+        </a>
+        <a class="nav-item" href="cart.html">
+          <span>&#x1F6D2;</span>
+          <span>购物车</span>
+        </a>
+        <a class="nav-item" href="order.html">
+          <span>&#x1F4E6;</span>
+          <span>我的订单</span>
+        </a>
+        <a class="nav-item" href="promotions.html">
+          <span>&#x1F381;</span>
+          <span>优惠</span>
+        </a>
+        <a class="nav-item" href="ai-chat.html">
+          <span>&#x1F916;</span>
+          <span>万事通</span>
+        </a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span>
+          <span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F3E0; 首页</h1>
+        <span style="color:var(--text-secondary);font-size:14px">发现好书，遇见有趣的灵魂</span>
+      </div>
+      <div class="main-body">
+        <!-- Search -->
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="搜索书名、作者..." onkeypress="if(event.key==='Enter')doSearch()">
+          <button onclick="doSearch()">&#x1F50D; 搜索</button>
+        </div>
+
+        <!-- Promo: Flash Sale + Coupons -->
+        <div class="promo-section">
+          <div class="flash-sale">
+            <div class="flash-header">
+              <span class="flash-icon">&#x26A1;</span>
+              <span class="flash-title">限时秒杀</span>
+              <span class="flash-countdown" id="flashCountdown">--:--:--</span>
+            </div>
+            <div class="flash-items" id="flashItems"></div>
+          </div>
+          <div class="coupon-area">
+            <div class="coupon-header">
+              <span class="coupon-icon">&#x1F3AB;</span>
+              <span class="coupon-title">领券中心</span>
+            </div>
+            <div class="coupon-list" id="couponList"></div>
+          </div>
+        </div>
+
+        <!-- Hot Books -->
+        <div id="hotSection">
+          <div class="section-title">&#x1F916; AI 为你推荐</div>
+          <div class="book-grid" id="hotBooks"><p style="color:var(--text-secondary)">加载中...</p></div>
+        </div>
+
+        <!-- New Books -->
+        <div id="newSection">
+          <div class="section-title">&#x1F195; 新书推荐</div>
+          <div class="book-grid" id="newBooks"><p style="color:var(--text-secondary)">加载中...</p></div>
+        </div>
+
+        <!-- Browse all books with category filter + pagination -->
+        <div id="browseSection">
+          <div class="section-title" id="browseTitle">&#x1F4DA; 全部图书</div>
+          <div class="category-nav" id="categoryNav"></div>
+          <div class="book-grid" id="browseBooks"><p style="color:var(--text-secondary)">加载中...</p></div>
+          <div class="browse-pager" id="browsePager" style="display:none;justify-content:center;gap:8px;margin:16px 0">
+            <button id="browsePrev" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--white);cursor:pointer;font-size:13px">上一页</button>
+            <span style="align-self:center;color:var(--text-secondary);font-size:13px">
+              <span id="browseCurPage">1</span> / <span id="browseTotalPage">1</span>
+            </span>
+            <button id="browseNext" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--white);cursor:pointer;font-size:13px">下一页</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      window.location.href = 'index.html';
+    }
+
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    let userFavorites = new Set();
+
+    async function loadUserFavorites() {
+      try {
+        const result = await api('/api/favorite?page=1&size=1000');
+        if (result.code === 200 && result.data && result.data.list) {
+          userFavorites = new Set(result.data.list.map(item => item.bookId));
+        }
+      } catch (e) {
+        console.warn('loadUserFavorites failed', e);
+      }
+    }
+
+    // ---------- Categories ----------
+    let categories = [{id: 0, name: '全部'}];
+    let currentCategory = 0;
+
+    async function loadCategories() {
+      const result = await api('/api/category/tree');
+      if (result.code === 200 && result.data) {
+        const list = result.data
+          .filter(c => c.status === 1)
+          .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+          .map(c => ({ id: c.id, name: c.name }));
+        categories = [{id: 0, name: '全部'}, ...list];
+        renderCategories();
+      }
+    }
+
+    function renderCategories() {
+      const nav = document.getElementById('categoryNav');
+      nav.innerHTML = categories.map(c =>
+        `<div class="category-tag ${c.id === currentCategory ? 'active' : ''}" onclick="selectCategory(${c.id})">${c.name}</div>`
+      ).join('');
+    }
+
+    function selectCategory(id) {
+      currentCategory = id;
+      browsePage = 1;
+      browseKeyword = '';
+      document.getElementById('searchInput').value = '';
+      renderCategories();
+      loadBrowseBooks();
+    }
+
+    // ---------- Books ----------
+    function renderBookCard(book) {
+      const badge = (book.salesCount || 0) > 10000
+        ? '<span class="badge badge-hot">热销</span>' : '';
+      const cover = book.coverKey || `https://picsum.photos/seed/${book.id}/300/400`;
+      const isFav = userFavorites.has(book.id);
+      const favClass = isFav ? 'active' : '';
+      const favTitle = isFav ? '已在书架' : '加入书架';
+      return `
+        <div class="book-card" onclick="goDetail(${book.id})">
+          <button class="book-fav-btn ${favClass}" title="${favTitle}" onclick="toggleHomeFavorite(event, ${book.id}, this)">&#x2665;</button>
+          <div class="book-cover" style="background-image:url('${cover}')">
+            ${badge}
+          </div>
+          <div class="book-info">
+            <div class="book-title">${book.title}</div>
+            <div class="book-author">${book.author || ''}</div>
+            <div class="book-price">&yen;${Number(book.price || 0).toFixed(2)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadAiRecommend() {
+      const result = await api('/api/book/ai-recommend?limit=8');
+      const container = document.getElementById('hotBooks');
+      if (result.code === 200 && result.data && result.data.length) {
+        container.innerHTML = result.data.map(renderBookCard).join('');
+      } else {
+        container.innerHTML = '<p style="color:var(--text-secondary)">暂无推荐数据</p>';
+      }
+    }
+
+    async function loadNewBooks() {
+      const result = await api('/api/book/new?limit=8');
+      const container = document.getElementById('newBooks');
+      if (result.code === 200 && result.data && result.data.length) {
+        container.innerHTML = result.data.map(renderBookCard).join('');
+      } else {
+        container.innerHTML = '<p style="color:var(--text-secondary)">暂无数据</p>';
+      }
+    }
+
+    // ---------- Browse (paginated all-books listing) ----------
+    let browsePage = 1;
+    const browsePageSize = 20;
+    let browseKeyword = '';
+
+    async function loadBrowseBooks() {
+      const titleEl = document.getElementById('browseTitle');
+      const container = document.getElementById('browseBooks');
+      const pager = document.getElementById('browsePager');
+
+      if (browseKeyword) {
+        titleEl.innerHTML = `&#x1F50D; 「${browseKeyword}」的AI搜索结果`;
+        const result = await api(`/api/book/ai-search?keyword=${encodeURIComponent(browseKeyword)}`);
+        if (result.code !== 200) {
+          container.innerHTML = `<p style="color:var(--text-secondary);padding:20px 0">${result.msg || '搜索失败'}</p>`;
+          pager.style.display = 'none';
+          return;
+        }
+        const list = result.data || [];
+        container.innerHTML = list.length
+          ? list.map(renderBookCard).join('')
+          : '<p style="color:var(--text-secondary);padding:20px 0">未找到相关图书</p>';
+        pager.style.display = 'none';
+        return;
+      }
+
+      let path;
+      if (currentCategory && currentCategory !== 0) {
+        path = `/api/book?categoryId=${currentCategory}&page=${browsePage}&size=${browsePageSize}`;
+        const cat = categories.find(c => c.id === currentCategory);
+        titleEl.innerHTML = `&#x1F4DA; ${cat ? cat.name : '分类'}图书`;
+      } else {
+        path = `/api/book?page=${browsePage}&size=${browsePageSize}`;
+        titleEl.innerHTML = `&#x1F4DA; 全部图书`;
+      }
+
+      const result = await api(path);
+      if (result.code !== 200 || !result.data) {
+        container.innerHTML = `<p style="color:var(--text-secondary);padding:20px 0">${result.msg || '加载失败'}</p>`;
+        pager.style.display = 'none';
+        return;
+      }
+      const list = result.data.list || [];
+      const total = result.data.total || 0;
+      const totalPage = Math.max(1, Math.ceil(total / browsePageSize));
+
+      container.innerHTML = list.length
+        ? list.map(renderBookCard).join('')
+        : '<p style="color:var(--text-secondary);padding:20px 0">暂无图书</p>';
+
+      if (total > browsePageSize) {
+        document.getElementById('browseCurPage').textContent = browsePage;
+        document.getElementById('browseTotalPage').textContent = totalPage;
+        document.getElementById('browsePrev').disabled = browsePage <= 1;
+        document.getElementById('browseNext').disabled = browsePage >= totalPage;
+        pager.style.display = 'flex';
+      } else {
+        pager.style.display = 'none';
+      }
+    }
+
+    async function doSearch() {
+      const kw = document.getElementById('searchInput').value.trim();
+      browseKeyword = kw;
+      currentCategory = 0;
+      browsePage = 1;
+      renderCategories();
+      loadBrowseBooks();
+    }
+
+    function goDetail(id) {
+      window.location.href = `detail.html?id=${id}`;
+    }
+
+    async function toggleHomeFavorite(e, bookId, btn) {
+      e.stopPropagation();
+      console.log('toggleHomeFavorite', 'bookId=', bookId, 'type=', typeof bookId);
+      if (btn.classList.contains('active')) {
+        if (!confirm('已在书架，确定取消收藏？')) return;
+      }
+      const isFav = btn.classList.contains('active');
+      btn.disabled = true;
+      try {
+        const method = isFav ? 'DELETE' : 'POST';
+        const url = `/api/favorite/${bookId}`;
+        console.log('favorite api', method, url);
+        const result = await api(url, { method });
+        console.log('favorite result', result);
+        if (result.code === 200) {
+          if (isFav) {
+            btn.classList.remove('active');
+            btn.title = '加入书架';
+            userFavorites.delete(bookId);
+          } else {
+            btn.classList.add('active');
+            btn.title = '已在书架';
+            userFavorites.add(bookId);
+          }
+        } else if (!isFav && result.msg && result.msg.includes('已收藏')) {
+          btn.classList.add('active');
+          btn.title = '已在书架';
+          userFavorites.add(bookId);
+          alert('这本书已经在您的书架中');
+        } else {
+          alert(result.msg || '操作失败');
+        }
+      } catch (err) {
+        console.error('toggleHomeFavorite error', err);
+        alert('网络错误');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ---------- Flash Sale (real API) ----------
+    let flashSales = [];
+    let flashTimer = null;
+
+    function formatCountdown(ms) {
+      if (ms <= 0) return '00:00:00';
+      const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
+      const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
+      const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    async function loadFlashSales() {
+      const result = await api('/api/seckill/running');
+      const container = document.getElementById('flashItems');
+      if (result.code !== 200 || !result.data || !result.data.length) {
+        flashSales = [];
+        container.innerHTML = '<p style="color:var(--text-secondary);padding:10px">暂无进行中的秒杀</p>';
+        document.getElementById('flashCountdown').textContent = '--:--:--';
+        return;
+      }
+      flashSales = result.data.slice(0, 4).map(a => ({
+        id: a.id,
+        bookId: a.bookId,
+        title: a.bookTitle,
+        flashPrice: Number(a.seckillPrice || 0),
+        originPrice: Number(a.originalPrice || 0),
+        stock: a.remainingStock != null ? a.remainingStock : Math.max(0, (a.totalStock || 0) - (a.soldCount || 0)),
+        total: a.totalStock || 0,
+        cover: a.bookCover || `https://picsum.photos/seed/${a.bookId || a.id}/200/250`,
+        endTime: a.endTime ? new Date(String(a.endTime).replace(' ', 'T')).getTime() : 0,
+      }));
+      renderFlashSale();
+      if (flashTimer) clearInterval(flashTimer);
+      flashTimer = setInterval(updateCountdown, 1000);
+      updateCountdown();
+    }
+
+    function renderFlashSale() {
+      const container = document.getElementById('flashItems');
+      if (!flashSales.length) {
+        container.innerHTML = '<p style="color:var(--text-secondary);padding:10px">暂无进行中的秒杀</p>';
+        return;
+      }
+      container.innerHTML = flashSales.map(item => {
+        const percent = item.total === 0 ? 0 : Math.round((1 - item.stock / item.total) * 100);
+        return `
+          <div class="flash-item">
+            <img class="flash-img" src="${item.cover}" alt="${item.title}">
+            <div class="flash-info">
+              <div class="flash-name">${item.title}</div>
+              <div class="flash-price-row">
+                <span class="flash-price">&yen;${item.flashPrice.toFixed(2)}</span>
+                <span class="flash-origin">&yen;${item.originPrice.toFixed(2)}</span>
+              </div>
+              <div class="flash-stock">已抢${percent}% &middot; 剩${item.stock}件</div>
+              <button class="flash-btn" ${item.stock <= 0 ? 'disabled' : ''} onclick="buyFlash(${item.id})">${item.stock <= 0 ? '已抢光' : '立即抢'}</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateCountdown() {
+      if (!flashSales.length) {
+        document.getElementById('flashCountdown').textContent = '--:--:--';
+        return;
+      }
+      const now = Date.now();
+      const minEnd = Math.min(...flashSales.map(s => s.endTime));
+      const remain = minEnd - now;
+      document.getElementById('flashCountdown').textContent = '距结束 ' + formatCountdown(remain);
+      if (remain <= 0) {
+        clearInterval(flashTimer);
+        flashTimer = null;
+        loadFlashSales();
+      }
+    }
+
+    function buyFlash(id) {
+      // 抢购需要选地址，跳转到优惠页的秒杀 Tab 完成下单流程
+      location.href = 'promotions.html#seckill';
+    }
+
+    // ---------- Coupons (real API) ----------
+    let coupons = [];
+
+    async function loadCoupons() {
+      const result = await api('/api/coupons/available');
+      const list = document.getElementById('couponList');
+      if (result.code !== 200 || !result.data || !result.data.length) {
+        coupons = [];
+        list.innerHTML = '<p style="color:var(--text-secondary);padding:10px">暂无可领取的优惠券</p>';
+        return;
+      }
+      coupons = result.data.slice(0, 4);
+      renderCoupons();
+    }
+
+    function renderCoupons() {
+      const list = document.getElementById('couponList');
+      list.innerHTML = coupons.map(c => {
+        const valueText = c.type === 'DISCOUNT'
+          ? `${(Number(c.discountValue) * 10).toFixed(1)}折`
+          : `&yen;${Number(c.discountValue).toFixed(0)}`;
+        const ruleText = c.threshold && Number(c.threshold) > 0 ? `满${Number(c.threshold).toFixed(0)}可用` : '无门槛';
+        const claimed = c.claimed === true;
+        const soldOut = (c.remainingCount != null && c.remainingCount <= 0);
+        let btnClass, btnText, btnDisabled;
+        if (claimed) {
+          btnClass = 'coupon-btn claimed';
+          btnText = '已领取';
+          btnDisabled = true;
+        } else if (soldOut) {
+          btnClass = 'coupon-btn';
+          btnText = '已抢光';
+          btnDisabled = true;
+        } else {
+          btnClass = 'coupon-btn';
+          btnText = '领取';
+          btnDisabled = false;
+        }
+        return `
+          <div class="coupon-card">
+            <div class="coupon-value">${valueText}</div>
+            <div class="coupon-name">${c.name}</div>
+            <div class="coupon-rule">${ruleText}</div>
+            <button class="${btnClass}" onclick="claimCoupon(${c.templateId})" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function claimCoupon(templateId) {
+      const c = coupons.find(x => x.templateId === templateId);
+      if (!c || c.claimed) return;
+      const result = await api('/api/coupons/' + templateId + '/claim', { method: 'POST' });
+      if (result.code === 200) {
+        c.claimed = true;
+        renderCoupons();
+        alert(`「${c.name}」优惠券领取成功！可在「优惠 - 我的优惠券」查看`);
+      } else {
+        alert(result.msg || '领取失败');
+      }
+    }
+
+    // ---------- User ----------
+    async function loadUser() {
+      try {
+        const result = await api('/api/user/me');
+        if (result.code === 200) {
+          const name = result.data.nickname || result.data.username;
+          document.getElementById('sideName').textContent = name;
+          document.getElementById('sideRole').textContent = result.data.role || 'USER';
+          if (result.data.role === 'ADMIN') {
+            document.getElementById('adminNav').style.display = 'flex';
+          }
+        } else {
+          logout();
+        }
+      } catch (err) {
+        document.getElementById('sideName').textContent = '未知';
+      }
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    // ---------- Init ----------
+    document.getElementById('browsePrev').onclick = () => {
+      if (browsePage > 1) { browsePage--; loadBrowseBooks(); window.scrollTo({ top: document.getElementById('browseSection').offsetTop, behavior: 'smooth' }); }
+    };
+    document.getElementById('browseNext').onclick = () => {
+      browsePage++; loadBrowseBooks(); window.scrollTo({ top: document.getElementById('browseSection').offsetTop, behavior: 'smooth' });
+    };
+
+    loadUser();
+    loadCategories();
+    loadUserFavorites().then(() => {
+      loadAiRecommend();
+      loadNewBooks();
+      loadBrowseBooks();
+    });
+    loadFlashSales();
+    loadCoupons();
+  </script>
+</body>
+</html>

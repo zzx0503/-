@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 我的书架</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .shelf-section {
+      margin-bottom: 32px;
+    }
+    .shelf-section h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--primary);
+      display: inline-block;
+    }
+    .shelf-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 20px;
+    }
+    .shelf-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+      transition: transform .2s;
+    }
+    .shelf-card:hover {
+      transform: translateY(-4px);
+    }
+    .shelf-card .shelf-cover {
+      width: 100%;
+      height: 200px;
+      background-size: cover;
+      background-position: center;
+      cursor: pointer;
+    }
+    .shelf-card .shelf-info {
+      padding: 12px;
+    }
+    .shelf-card .shelf-title {
+      font-size: 14px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 4px;
+    }
+    .shelf-card .shelf-author {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .shelf-card .shelf-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .shelf-card .shelf-price {
+      font-size: 15px;
+      color: #e74c3c;
+      font-weight: 700;
+    }
+    .shelf-card .shelf-fav {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 50%;
+      background: #fff0f0;
+      color: #e74c3c;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: background .2s;
+    }
+    .shelf-card .shelf-fav:hover {
+      background: #e74c3c;
+      color: var(--white);
+    }
+    .empty-shelf {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+    .empty-shelf p {
+      margin-top: 12px;
+    }
+    .empty-shelf a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html">
+          <span>&#x1F464;</span>
+          <span>用户中心</span>
+        </a>
+        <a class="nav-item" href="home.html">
+          <span>&#x1F3E0;</span>
+          <span>首页</span>
+        </a>
+        <a class="nav-item active" href="favorite.html">
+          <span>&#x1F4D6;</span>
+          <span>我的书架</span>
+        </a>
+        <a class="nav-item" href="cart.html">
+          <span>&#x1F6D2;</span>
+          <span>购物车</span>
+        </a>
+        <a class="nav-item" href="order.html">
+          <span>&#x1F4E6;</span>
+          <span>我的订单</span>
+        </a>
+        <a class="nav-item" href="promotions.html">
+          <span>&#x1F381;</span>
+          <span>优惠</span>
+        </a>
+        <a class="nav-item" href="ai-chat.html">
+          <span>&#x1F916;</span>
+          <span>万事通</span>
+        </a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span>
+          <span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4D6; 我的书架</h1>
+        <span style="color:var(--text-secondary);font-size:14px">您收藏的所有图书，按分类整理</span>
+      </div>
+      <div class="main-body" id="shelfBody">
+        <p style="color:var(--text-secondary)">加载中...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      window.location.href = 'index.html';
+    }
+
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    async function loadUser() {
+      try {
+        const result = await api('/api/user/me');
+        if (result.code === 200) {
+          const name = result.data.nickname || result.data.username;
+          document.getElementById('sideName').textContent = name;
+          document.getElementById('sideRole').textContent = result.data.role || 'USER';
+          if (result.data.role === 'ADMIN') {
+            document.getElementById('adminNav').style.display = 'flex';
+          }
+        } else {
+          logout();
+        }
+      } catch (err) {
+        document.getElementById('sideName').textContent = '未知';
+      }
+    }
+
+    async function loadFavorites() {
+      const result = await api('/api/favorite?page=1&size=1000');
+      const body = document.getElementById('shelfBody');
+      if (result.code !== 200 || !result.data || !result.data.list || !result.data.list.length) {
+        body.innerHTML = `
+          <div class="empty-shelf">
+            <div style="font-size:48px">&#x1F4DA;</div>
+            <p>书架空空如也，快去 <a href="home.html">首页</a> 发现好书吧~</p>
+          </div>
+        `;
+        return;
+      }
+
+      const list = result.data.list;
+      const groups = {};
+      list.forEach(item => {
+        const cat = item.bookCategoryName || '未分类';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(item);
+      });
+
+      const order = Object.keys(groups).sort((a, b) => {
+        if (a === '未分类') return 1;
+        if (b === '未分类') return -1;
+        return a.localeCompare(b, 'zh');
+      });
+
+      body.innerHTML = order.map(cat => `
+        <div class="shelf-section">
+          <h2>${cat} (${groups[cat].length})</h2>
+          <div class="shelf-grid">
+            ${groups[cat].map(item => `
+              <div class="shelf-card">
+                <div class="shelf-cover" onclick="goDetail(${item.bookId})" style="background-image:url('${item.bookCover || `https://picsum.photos/seed/${item.bookId}/300/400`}')"></div>
+                <div class="shelf-info">
+                  <div class="shelf-title">${item.bookTitle || '--'}</div>
+                  <div class="shelf-author">${item.bookAuthor || '--'}</div>
+                  <div class="shelf-row">
+                    <span class="shelf-price">&yen;${Number(item.bookPrice || 0).toFixed(2)}</span>
+                    <button class="shelf-fav" title="取消收藏" onclick="removeFav(event, ${item.bookId}, this)">&#x2665;</button>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function removeFav(e, bookId, btn) {
+      e.stopPropagation();
+      if (!confirm('确定取消收藏这本书？')) return;
+      btn.disabled = true;
+      try {
+        const result = await api(`/api/favorite/${bookId}`, { method: 'DELETE' });
+        if (result.code === 200) {
+          const card = btn.closest('.shelf-card');
+          if (card) {
+            card.style.transition = 'opacity .3s, transform .3s';
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+              card.remove();
+              const section = btn.closest('.shelf-section');
+              if (section && !section.querySelector('.shelf-card')) {
+                section.remove();
+              }
+              if (!document.querySelector('.shelf-card')) {
+                document.getElementById('shelfBody').innerHTML = `
+                  <div class="empty-shelf">
+                    <div style="font-size:48px">&#x1F4DA;</div>
+                    <p>书架空空如也，快去 <a href="home.html">首页</a> 发现好书吧~</p>
+                  </div>
+                `;
+              }
+            }, 300);
+          }
+        } else {
+          alert(result.msg || '取消收藏失败');
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert('网络错误');
+        btn.disabled = false;
+      }
+    }
+
+    function goDetail(id) {
+      window.location.href = `detail.html?id=${id}`;
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    loadUser();
+    loadFavorites();
+  </script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 地址管理</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html">
+          <span>&#x1F464;</span>
+          <span>用户中心</span>
+        </a>
+        <a class="nav-item" href="home.html">
+          <span>&#x1F3E0;</span>
+          <span>首页</span>
+        </a>
+        <a class="nav-item" href="favorite.html">
+          <span>&#x1F4D6;</span>
+          <span>我的书架</span>
+        </a>
+        <a class="nav-item" href="cart.html">
+          <span>&#x1F6D2;</span>
+          <span>购物车</span>
+        </a>
+        <a class="nav-item" href="order.html">
+          <span>&#x1F4E6;</span>
+          <span>我的订单</span>
+        </a>
+        <a class="nav-item" href="promotions.html">
+          <span>&#x1F381;</span>
+          <span>优惠</span>
+        </a>
+        <a class="nav-item" href="ai-chat.html">
+          <span>&#x1F916;</span>
+          <span>万事通</span>
+        </a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span>
+          <span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4CD; 地址管理</h1>
+        <span style="color:var(--text-secondary);font-size:14px">管理收货地址</span>
+      </div>
+      <div class="main-body">
+        <div class="address-list" id="addressList">
+          <p style="color:var(--text-secondary)">加载中...</p>
+        </div>
+
+        <div class="address-form" id="addressForm">
+          <h3 id="formTitle">新增地址</h3>
+          <form onsubmit="return saveAddress(event)">
+            <input type="hidden" id="editId" value="">
+            <div class="form-row">
+              <div class="form-group">
+                <label>收货人</label>
+                <input type="text" id="addrReceiver" placeholder="姓名" required>
+              </div>
+              <div class="form-group">
+                <label>手机号</label>
+                <input type="text" id="addrPhone" placeholder="11位手机号" required>
+              </div>
+              <div class="form-group">
+                <label>省份</label>
+                <input type="text" id="addrProvince" placeholder="省份" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>城市</label>
+                <input type="text" id="addrCity" placeholder="城市" required>
+              </div>
+              <div class="form-group">
+                <label>区县</label>
+                <input type="text" id="addrDistrict" placeholder="区县" required>
+              </div>
+              <div class="form-group">
+                <label>详细地址</label>
+                <input type="text" id="addrDetail" placeholder="街道、门牌号等" required>
+              </div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+              <input type="checkbox" id="addrDefault" style="width:auto">
+              <label for="addrDefault" style="margin-bottom:0">设为默认地址</label>
+            </div>
+            <button type="submit" class="btn-primary" style="width:auto;padding:12px 32px">保存地址</button>
+            <button type="button" class="btn-secondary" id="cancelEditBtn" style="display:none;margin-left:8px" onclick="cancelEdit()">取消</button>
+            <span class="error-msg" id="addrError" style="margin-left:16px;display:inline"></span>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      window.location.href = 'index.html';
+    }
+
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    async function loadUser() {
+      const result = await api('/api/user/me');
+      if (result.code === 200) {
+        const name = result.data.nickname || result.data.username;
+        document.getElementById('sideName').textContent = name;
+        document.getElementById('sideRole').textContent = result.data.role || 'USER';
+        if (result.data.role === 'ADMIN') {
+          document.getElementById('adminNav').style.display = 'flex';
+        }
+      }
+    }
+
+    async function loadAddresses() {
+      const result = await api('/api/address');
+      const list = document.getElementById('addressList');
+      if (result.code !== 200 || !result.data || result.data.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-secondary)">暂无地址，请添加。</p>';
+        return;
+      }
+      list.innerHTML = result.data.map(a => `
+        <div class="address-item">
+          <div class="address-info">
+            <h4>${a.receiver} <span style="color:var(--text-secondary);font-size:14px;font-weight:normal">${a.phone}</span>${a.isDefault ? '<span class="address-tag">默认</span>' : ''}</h4>
+            <p>${a.province || ''} ${a.city || ''} ${a.district || ''} ${a.detailAddress}</p>
+          </div>
+          <div class="address-actions" style="display:flex;gap:8px;align-items:center;margin-left:auto">
+            <button class="admin-btn" onclick="startEdit(${a.id}, '${escapeJs(a.receiver)}', '${escapeJs(a.phone)}', '${escapeJs(a.province)}', '${escapeJs(a.city)}', '${escapeJs(a.district)}', '${escapeJs(a.detailAddress)}', ${a.isDefault})">编辑</button>
+            <button class="admin-btn danger" onclick="deleteAddress(${a.id})">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeJs(str) {
+      if (!str) return '';
+      return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    }
+
+    function startEdit(id, receiver, phone, province, city, district, detailAddress, isDefault) {
+      document.getElementById('formTitle').textContent = '编辑地址';
+      document.getElementById('editId').value = id;
+      document.getElementById('addrReceiver').value = receiver;
+      document.getElementById('addrPhone').value = phone;
+      document.getElementById('addrProvince').value = province;
+      document.getElementById('addrCity').value = city;
+      document.getElementById('addrDistrict').value = district;
+      document.getElementById('addrDetail').value = detailAddress;
+      document.getElementById('addrDefault').checked = isDefault;
+      document.getElementById('cancelEditBtn').style.display = 'inline-block';
+      document.getElementById('addressForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+      document.getElementById('formTitle').textContent = '新增地址';
+      document.getElementById('editId').value = '';
+      document.querySelector('#addressForm form').reset();
+      document.getElementById('cancelEditBtn').style.display = 'none';
+    }
+
+    async function saveAddress(e) {
+      e.preventDefault();
+      document.getElementById('addrError').textContent = '';
+      const id = document.getElementById('editId').value;
+      const body = {
+        receiver: document.getElementById('addrReceiver').value,
+        phone: document.getElementById('addrPhone').value,
+        province: document.getElementById('addrProvince').value,
+        city: document.getElementById('addrCity').value,
+        district: document.getElementById('addrDistrict').value,
+        detailAddress: document.getElementById('addrDetail').value,
+        setDefault: document.getElementById('addrDefault').checked
+      };
+      try {
+        const path = id ? '/api/address/' + id : '/api/address';
+        const method = id ? 'PUT' : 'POST';
+        const result = await api(path, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (result.code === 200) {
+          cancelEdit();
+          loadAddresses();
+        } else {
+          document.getElementById('addrError').textContent = result.msg || '保存失败';
+        }
+      } catch (err) {
+        document.getElementById('addrError').textContent = '网络错误';
+      }
+      return false;
+    }
+
+    async function deleteAddress(id) {
+      if (!confirm('确定要删除该地址吗？')) return;
+      try {
+        const result = await api('/api/address/' + id, { method: 'DELETE' });
+        if (result.code === 200) {
+          loadAddresses();
+        } else {
+          alert(result.msg || '删除失败');
+        }
+      } catch (err) {
+        alert('网络错误');
+      }
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    loadUser();
+    loadAddresses();
+  </script>
+</body>
+</html>

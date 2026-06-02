@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>后台管理 - 仪表盘</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+    }
+    .kpi-card .lbl {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .kpi-card .v {
+      font-size: 24px;
+      font-weight: 700;
+      margin-top: 6px;
+      color: var(--text-main);
+    }
+    .kpi-card .v.money { color: #e74c3c; }
+    .kpi-card .delta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 980px) { .panel-grid { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+    }
+    .panel h3 { font-size: 15px; margin-bottom: 12px; }
+    .chart-wrap {
+      width: 100%;
+      height: 220px;
+    }
+    .chart-wrap svg { width: 100%; height: 100%; }
+    .axis text { fill: var(--text-secondary); font-size: 11px; }
+    .grid line { stroke: #f0f0f0; }
+    .bar { fill: url(#barGrad); }
+    .bar:hover { fill: #ffb74d; }
+    .top-list .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .top-list .row:last-child { border-bottom: none; }
+    .top-list .rank {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #f5f5f5;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .top-list .rank.t1 { background: #e74c3c; color: #fff; }
+    .top-list .rank.t2 { background: #f39c12; color: #fff; }
+    .top-list .rank.t3 { background: #f1c40f; color: #fff; }
+    .top-list .cover {
+      width: 36px;
+      height: 48px;
+      background-size: cover;
+      background-position: center;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .top-list .info { flex: 1; min-width: 0; font-size: 13px; }
+    .top-list .info .t {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .top-list .info .s {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .top-list .info .p { color: #e74c3c; font-weight: 700; }
+    .pie-row {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .pie-svg { flex-shrink: 0; }
+    .pie-legend { flex: 1; font-size: 13px; }
+    .pie-legend .li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+    .pie-legend .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x2699;&#xFE0F;</span>
+        <span>后台管理</span>
+      </div>
+      <nav class="sidebar-nav" id="adminSideNav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">ADMIN</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4CA; 仪表盘</h1>
+        <span style="color:var(--text-secondary);font-size:14px">关键运营数据一览</span>
+      </div>
+      <div class="main-body" id="content">
+        <div style="text-align:center;color:var(--text-secondary);padding:60px 0">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./common.js"></script>
+  <script>
+    setActiveNav('index');
+
+    async function loadDashboard() {
+      const result = await api('/api/admin/stats/dashboard');
+      const c = document.getElementById('content');
+      if (result.code !== 200 || !result.data) {
+        c.innerHTML = `<div style="text-align:center;color:var(--text-secondary);padding:60px 0">${result.msg || '加载失败'}</div>`;
+        return;
+      }
+      const d = result.data;
+      c.innerHTML = `
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="lbl">用户总数</div><div class="v">${d.totalUsers || 0}</div><div class="delta">今日新增 ${d.newUsersToday || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">图书总数</div><div class="v">${d.totalBooks || 0}</div><div class="delta">在售 ${d.onSaleBooks || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">订单总数</div><div class="v">${d.totalOrders || 0}</div><div class="delta">今日 ${d.ordersToday || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">总营收</div><div class="v money">¥${Number(d.totalRevenue || 0).toFixed(2)}</div><div class="delta">今日 ¥${Number(d.revenueToday || 0).toFixed(2)}</div></div>
+          <div class="kpi-card"><div class="lbl">待付款</div><div class="v">${d.pendingPayOrders || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">待发货</div><div class="v">${d.paidOrders || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">待收货</div><div class="v">${d.shippedOrders || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">已完成</div><div class="v">${d.completedOrders || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">进行中秒杀</div><div class="v">${d.runningSeckillActivities || 0}</div></div>
+          <div class="kpi-card"><div class="lbl">在派优惠券</div><div class="v">${d.runningCouponTemplates || 0}</div></div>
+        </div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <h3>近 7 天销售趋势</h3>
+            <div class="chart-wrap" id="chart7"></div>
+          </div>
+          <div class="panel">
+            <h3>订单状态分布</h3>
+            <div class="pie-row">
+              <div class="pie-svg" id="pieSvg"></div>
+              <div class="pie-legend" id="pieLegend"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>热销 Top 图书</h3>
+          <div class="top-list" id="topList"></div>
+        </div>
+      `;
+      renderChart(d.last7DaysSales || []);
+      renderPie(d.orderStatusBreakdown || {});
+      renderTopBooks(d.topBooks || []);
+    }
+
+    function renderChart(rows) {
+      const wrap = document.getElementById('chart7');
+      if (!rows.length) { wrap.innerHTML = '<div style="color:var(--text-secondary);text-align:center;padding:40px 0">暂无数据</div>'; return; }
+      const w = wrap.clientWidth || 560;
+      const h = 220;
+      const padL = 40, padB = 28, padT = 12, padR = 12;
+      const cw = w - padL - padR, ch = h - padT - padB;
+      const max = Math.max(...rows.map(r => Number(r.revenue || 0)), 1);
+      const bw = cw / rows.length;
+      const innerBw = bw * 0.6;
+      const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => max * t);
+      let svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">`;
+      svg += `<defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff5f6d"/><stop offset="100%" stop-color="#ffc371"/></linearGradient></defs>`;
+      svg += '<g class="grid">';
+      ticks.forEach(t => {
+        const y = padT + ch - (t / max) * ch;
+        svg += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}"/>`;
+      });
+      svg += '</g><g class="axis">';
+      ticks.forEach(t => {
+        const y = padT + ch - (t / max) * ch;
+        svg += `<text x="${padL - 6}" y="${y + 3}" text-anchor="end">${Math.round(t)}</text>`;
+      });
+      rows.forEach((r, i) => {
+        const x = padL + bw * i + (bw - innerBw) / 2;
+        const v = Number(r.revenue || 0);
+        const bh = (v / max) * ch;
+        const y = padT + ch - bh;
+        svg += `<rect class="bar" x="${x}" y="${y}" width="${innerBw}" height="${bh}"><title>${r.date}: ¥${v.toFixed(2)} (${r.orderCount} 单)</title></rect>`;
+        svg += `<text x="${padL + bw * i + bw / 2}" y="${h - padB + 16}" text-anchor="middle">${(r.date || '').slice(5)}</text>`;
+      });
+      svg += '</g></svg>';
+      wrap.innerHTML = svg;
+    }
+
+    function renderPie(breakdown) {
+      const labelMap = { PENDING_PAY:'待付款', PAID:'待发货', SHIPPED:'待收货', COMPLETED:'已完成', CANCELLED:'已取消' };
+      const colorMap = { PENDING_PAY:'#f7b731', PAID:'#28a745', SHIPPED:'#1d6fff', COMPLETED:'#9aa0a6', CANCELLED:'#c0392b' };
+      const entries = Object.entries(breakdown).filter(([_, v]) => Number(v) > 0);
+      const total = entries.reduce((s, [_, v]) => s + Number(v), 0);
+      if (!entries.length || total === 0) {
+        document.getElementById('pieSvg').innerHTML = '<div style="color:var(--text-secondary);text-align:center;padding:30px">暂无</div>';
+        document.getElementById('pieLegend').innerHTML = '';
+        return;
+      }
+      const r = 60, cx = 70, cy = 70;
+      let acc = 0;
+      let paths = '';
+      entries.forEach(([k, v]) => {
+        const val = Number(v);
+        const start = acc / total * Math.PI * 2;
+        acc += val;
+        const end = acc / total * Math.PI * 2;
+        const x1 = cx + r * Math.sin(start), y1 = cy - r * Math.cos(start);
+        const x2 = cx + r * Math.sin(end), y2 = cy - r * Math.cos(end);
+        const big = end - start > Math.PI ? 1 : 0;
+        const color = colorMap[k] || '#ccc';
+        if (entries.length === 1) {
+          paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/>`;
+        } else {
+          paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${big} 1 ${x2},${y2} Z" fill="${color}"/>`;
+        }
+      });
+      document.getElementById('pieSvg').innerHTML = `<svg width="140" height="140" viewBox="0 0 140 140">${paths}</svg>`;
+      document.getElementById('pieLegend').innerHTML = entries.map(([k, v]) => {
+        const pct = ((Number(v) / total) * 100).toFixed(1);
+        return `<div class="li"><span><span class="dot" style="background:${colorMap[k]||'#ccc'}"></span>${labelMap[k] || k}</span><span>${v} (${pct}%)</span></div>`;
+      }).join('');
+    }
+
+    function renderTopBooks(items) {
+      const wrap = document.getElementById('topList');
+      if (!items.length) { wrap.innerHTML = '<div style="color:var(--text-secondary);text-align:center;padding:30px 0">暂无</div>'; return; }
+      wrap.innerHTML = items.map((it, i) => {
+        const cls = i === 0 ? 't1' : i === 1 ? 't2' : i === 2 ? 't3' : '';
+        return `
+          <div class="row">
+            <div class="rank ${cls}">${i + 1}</div>
+            <div class="cover" style="background-image:url('${it.coverKey || `https://picsum.photos/seed/${it.bookId}/120/160`}')"></div>
+            <div class="info">
+              <div class="t">${escapeHtml(it.title || '')}</div>
+              <div class="s">销量 ${it.salesCount || 0} 本 · <span class="p">¥${Number(it.price || 0).toFixed(2)}</span></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    loadUser();
+    loadDashboard();
+  </script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>后台管理 - 分类管理</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .cat-tree {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cat-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cat-row:last-child { border-bottom: none; }
+    .cat-row:hover { background: #fffbf5; }
+    .cat-row.child { padding-left: 56px; background: #fffefb; }
+    .cat-row .name { flex: 1; font-size: 14px; }
+    .cat-row .sort { color: var(--text-secondary); font-size: 12px; }
+    .cat-row .actions { display: flex; gap: 6px; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x2699;&#xFE0F;</span>
+        <span>后台管理</span>
+      </div>
+      <nav class="sidebar-nav" id="adminSideNav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">ADMIN</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F5C2; 分类管理</h1>
+        <span style="color:var(--text-secondary);font-size:14px">维护图书分类树结构</span>
+      </div>
+      <div class="main-body">
+        <div class="admin-toolbar">
+          <button class="admin-btn" onclick="reload()">刷新</button>
+          <div class="grow"></div>
+          <button class="admin-btn primary" onclick="openCreate(0)">+ 新增一级分类</button>
+        </div>
+        <div class="cat-tree" id="treeWrap">
+          <div style="text-align:center;color:var(--text-secondary);padding:30px">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-mask" id="modal">
+    <div class="admin-dialog" style="width:460px">
+      <h3 id="modalTitle">新增分类</h3>
+      <form onsubmit="return saveCat(event)">
+        <input type="hidden" id="fId">
+        <div class="admin-form-row full">
+          <div><label>名称 *</label><input type="text" id="fName" required maxlength="50"></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>父分类</label><select id="fParent"></select></div>
+          <div><label>排序</label><input type="number" id="fSort" min="0" value="0"></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>图标 Key</label><input type="text" id="fIcon" maxlength="255" placeholder="可选"></div>
+          <div><label>状态</label>
+            <select id="fStatus">
+              <option value="1">启用</option>
+              <option value="0">禁用</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="admin-btn" onclick="closeModal()">取消</button>
+          <button type="submit" class="admin-btn primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="./common.js"></script>
+  <script>
+    setActiveNav('categories');
+
+    let tree = [];
+    // childId -> parentId 映射（用于编辑时回填父级）
+    let childToParent = {};
+
+    async function reload() {
+      const result = await api('/api/category/tree');
+      const wrap = document.getElementById('treeWrap');
+      if (result.code !== 200 || !result.data) {
+        wrap.innerHTML = `<div style="text-align:center;color:var(--text-secondary);padding:30px">${result.msg || '加载失败'}</div>`;
+        return;
+      }
+      tree = result.data;
+      childToParent = {};
+      tree.forEach(p => {
+        if (p.children && p.children.length) p.children.forEach(c => { childToParent[c.id] = p.id; });
+      });
+      wrap.innerHTML = renderTree(tree);
+    }
+
+    function renderTree(list) {
+      if (!list.length) return `<div style="text-align:center;color:var(--text-secondary);padding:30px">暂无分类</div>`;
+      let html = '';
+      list.forEach(p => {
+        html += renderRow(p, false);
+        if (p.children && p.children.length) {
+          p.children.forEach(c => {
+            html += renderRow(c, true);
+          });
+        }
+      });
+      return html;
+    }
+
+    function renderRow(c, isChild) {
+      const tag = c.status === 1
+        ? '<span class="tag green">启用</span>'
+        : '<span class="tag red">禁用</span>';
+      return `
+        <div class="cat-row ${isChild ? 'child' : ''}">
+          <span class="name">${isChild ? '└ ' : ''}${escapeHtml(c.name)}</span>
+          <span class="sort">排序 ${c.sort || 0}</span>
+          ${tag}
+          <span class="actions">
+            ${isChild ? '' : `<button class="admin-btn" onclick="openCreate(${c.id})">+ 子分类</button>`}
+            <button class="admin-btn" onclick="openEdit(${c.id})">编辑</button>
+            <button class="admin-btn" onclick="toggleStatus(${c.id})">启停</button>
+            <button class="admin-btn danger" onclick="delCat(${c.id})">删除</button>
+          </span>
+        </div>
+      `;
+    }
+
+    function rebuildParentSelect(forceTopOnly, currentId) {
+      const sel = document.getElementById('fParent');
+      let html = '<option value="0">顶级分类</option>';
+      if (!forceTopOnly) {
+        tree.forEach(p => {
+          if (p.id === currentId) return;
+          html += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+        });
+      }
+      sel.innerHTML = html;
+    }
+
+    function openCreate(parentId) {
+      document.getElementById('modalTitle').textContent = parentId ? '新增子分类' : '新增分类';
+      document.getElementById('fId').value = '';
+      document.getElementById('fName').value = '';
+      document.getElementById('fSort').value = '0';
+      document.getElementById('fIcon').value = '';
+      document.getElementById('fStatus').value = '1';
+      rebuildParentSelect(false, null);
+      document.getElementById('fParent').value = String(parentId || 0);
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function findCat(id) {
+      for (const p of tree) {
+        if (p.id === id) return p;
+        if (p.children) {
+          for (const c of p.children) {
+            if (c.id === id) return c;
+          }
+        }
+      }
+      return null;
+    }
+
+    function openEdit(id) {
+      const c = findCat(id);
+      if (!c) { showToast('未找到分类', 'err'); return; }
+      const isTop = !childToParent[id];
+      const hasChildren = isTop && c.children && c.children.length;
+      document.getElementById('modalTitle').textContent = '编辑分类';
+      document.getElementById('fId').value = c.id;
+      document.getElementById('fName').value = c.name || '';
+      document.getElementById('fSort').value = c.sort != null ? c.sort : 0;
+      document.getElementById('fIcon').value = c.iconKey || '';
+      document.getElementById('fStatus').value = String(c.status != null ? c.status : 1);
+      // 防止环：有子分类的一级不允许变成子；这里允许选自己之外的同级 / 顶级
+      rebuildParentSelect(hasChildren, c.id);
+      const pid = isTop ? 0 : (childToParent[id] || 0);
+      document.getElementById('fParent').value = String(pid);
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('active');
+    }
+
+    async function saveCat(e) {
+      e.preventDefault();
+      const id = document.getElementById('fId').value;
+      const body = {
+        name: document.getElementById('fName').value.trim(),
+        parentId: Number(document.getElementById('fParent').value || 0),
+        iconKey: document.getElementById('fIcon').value.trim(),
+        sort: Number(document.getElementById('fSort').value || 0),
+        status: Number(document.getElementById('fStatus').value),
+      };
+      const path = id ? `/api/admin/category/${id}` : '/api/admin/category';
+      const method = id ? 'PUT' : 'POST';
+      const result = await api(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (result.code === 200) {
+        showToast('保存成功');
+        closeModal();
+        reload();
+      } else {
+        showToast(result.msg || '保存失败', 'err');
+      }
+      return false;
+    }
+
+    async function toggleStatus(id) {
+      if (!confirm('确认切换分类启停状态？')) return;
+      const result = await api(`/api/admin/category/${id}/status`, { method: 'PUT' });
+      if (result.code === 200) {
+        showToast('已切换');
+        reload();
+      } else {
+        showToast(result.msg || '操作失败', 'err');
+      }
+    }
+
+    async function delCat(id) {
+      if (!confirm('删除前请先清空该分类下的图书。确定删除？')) return;
+      const result = await api(`/api/admin/category/${id}`, { method: 'DELETE' });
+      if (result.code === 200) {
+        showToast('已删除');
+        reload();
+      } else {
+        showToast(result.msg || '删除失败', 'err');
+      }
+    }
+
+    (async () => {
+      await loadUser();
+      await reload();
+    })();
+  </script>
+</body>
+</html>

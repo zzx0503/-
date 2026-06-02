@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>后台管理 - 优惠券模板</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x2699;&#xFE0F;</span>
+        <span>后台管理</span>
+      </div>
+      <nav class="sidebar-nav" id="adminSideNav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">ADMIN</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F3AB; 优惠券模板</h1>
+        <span style="color:var(--text-secondary);font-size:14px">配置满减/折扣券，发放后用户可在领券中心领取</span>
+      </div>
+      <div class="main-body">
+        <div class="admin-toolbar">
+          <select id="statusSel">
+            <option value="">全部状态</option>
+            <option value="READY">未发放</option>
+            <option value="RUNNING">发放中</option>
+            <option value="ENDED">已结束</option>
+          </select>
+          <button class="admin-btn" onclick="reload()">查询</button>
+          <div class="grow"></div>
+          <button class="admin-btn primary" onclick="openCreate()">+ 新增模板</button>
+        </div>
+
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>类型</th>
+              <th>规则</th>
+              <th>有效期</th>
+              <th>领取/总量</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px">加载中...</td></tr>
+          </tbody>
+        </table>
+        <div class="admin-pagi" id="pagi"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-mask" id="modal">
+    <div class="admin-dialog">
+      <h3 id="modalTitle">新增优惠券模板</h3>
+      <form onsubmit="return saveCoupon(event)">
+        <input type="hidden" id="fId">
+        <div class="admin-form-row full">
+          <div><label>名称 *</label><input type="text" id="fName" required maxlength="100"></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>类型 *</label>
+            <select id="fType" required onchange="onTypeChange()">
+              <option value="FULL_REDUCE">满减券</option>
+              <option value="AMOUNT">直减券（无门槛）</option>
+              <option value="DISCOUNT">折扣券</option>
+            </select>
+          </div>
+          <div><label>使用门槛</label><input type="number" id="fThreshold" step="0.01" min="0" value="0"></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label id="discountValueLabel">优惠金额 *</label><input type="number" id="fDiscountValue" step="0.01" min="0" required></div>
+          <div><label>发放总量 *</label><input type="number" id="fTotalCount" min="1" required></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>生效时间 *</label><input type="datetime-local" id="fValidFrom" required></div>
+          <div><label>失效时间 *</label><input type="datetime-local" id="fValidTo" required></div>
+        </div>
+        <div class="admin-form-row full">
+          <div><label>说明</label><textarea id="fDescription" maxlength="255"></textarea></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="admin-btn" onclick="closeModal()">取消</button>
+          <button type="submit" class="admin-btn primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="./common.js"></script>
+  <script>
+    setActiveNav('coupons');
+
+    const TYPE_LABEL = { FULL_REDUCE: '满减', DISCOUNT: '折扣', AMOUNT: '直减' };
+    const STATUS_LABEL = {
+      READY:   { txt: '未发放', cls: 'tag gray' },
+      RUNNING: { txt: '发放中', cls: 'tag green' },
+      ENDED:   { txt: '已结束', cls: 'tag red' },
+    };
+
+    let currentPage = 1;
+    const PAGE_SIZE = 10;
+
+    function describeRule(t) {
+      const value = Number(t.discountValue || 0);
+      const threshold = Number(t.threshold || 0);
+      if (t.type === 'DISCOUNT') {
+        return (threshold > 0 ? `满 ¥${threshold.toFixed(2)} ` : '') + `打 ${value.toFixed(2)} 折`;
+      }
+      if (t.type === 'AMOUNT') {
+        return `直减 ¥${value.toFixed(2)}` + (threshold > 0 ? ` (满 ¥${threshold.toFixed(2)})` : '');
+      }
+      return `满 ¥${threshold.toFixed(2)} 减 ¥${value.toFixed(2)}`;
+    }
+
+    async function reload(page) {
+      currentPage = page || 1;
+      const status = document.getElementById('statusSel').value;
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      params.set('page', currentPage);
+      params.set('size', PAGE_SIZE);
+      const result = await api('/api/admin/coupon-templates?' + params.toString());
+      const tbody = document.getElementById('tbody');
+      if (result.code !== 200 || !result.data) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px">${result.msg || '加载失败'}</td></tr>`;
+        document.getElementById('pagi').innerHTML = '';
+        return;
+      }
+      const list = result.data.list || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px">暂无模板</td></tr>';
+      } else {
+        tbody.innerHTML = list.map(t => {
+          const st = STATUS_LABEL[t.status] || { txt: t.status, cls: 'tag gray' };
+          return `
+            <tr>
+              <td>
+                <div style="font-weight:600">${escapeHtml(t.name)}</div>
+                ${t.description ? `<div style="color:var(--text-secondary);font-size:12px">${escapeHtml(t.description)}</div>` : ''}
+              </td>
+              <td>${TYPE_LABEL[t.type] || t.type}</td>
+              <td>${describeRule(t)}</td>
+              <td style="font-size:12px">
+                ${fmtDateTime(t.validFrom)}<br>
+                <span style="color:var(--text-secondary)">至 ${fmtDateTime(t.validTo)}</span>
+              </td>
+              <td>${t.claimedCount || 0} / ${t.totalCount || 0}</td>
+              <td><span class="${st.cls}">${st.txt}</span></td>
+              <td>
+                ${t.status === 'READY' ? `<button class="admin-btn primary" onclick="issueT(${t.id})">发放</button>` : ''}
+                ${t.status === 'RUNNING' ? `<button class="admin-btn danger" onclick="endT(${t.id})">提前结束</button>` : ''}
+                ${t.status === 'READY' ? `<button class="admin-btn" onclick="openEdit(${t.id})">编辑</button>` : ''}
+                ${t.status === 'READY' ? `<button class="admin-btn danger" onclick="delT(${t.id})">删除</button>` : ''}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+      renderPagi(result.data.total || 0);
+    }
+
+    function renderPagi(total) {
+      const totalPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const wrap = document.getElementById('pagi');
+      wrap.innerHTML = `
+        <button onclick="reload(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+        <button class="cur">${currentPage} / ${totalPage}</button>
+        <button onclick="reload(${currentPage + 1})" ${currentPage >= totalPage ? 'disabled' : ''}>下一页</button>
+      `;
+    }
+
+    function onTypeChange() {
+      const t = document.getElementById('fType').value;
+      const lbl = document.getElementById('discountValueLabel');
+      lbl.textContent = t === 'DISCOUNT' ? '折扣（如 0.85） *' : '优惠金额 *';
+    }
+
+    function openCreate() {
+      document.getElementById('modalTitle').textContent = '新增优惠券模板';
+      document.getElementById('fId').value = '';
+      document.getElementById('fName').value = '';
+      document.getElementById('fType').value = 'FULL_REDUCE';
+      document.getElementById('fThreshold').value = '0';
+      document.getElementById('fDiscountValue').value = '';
+      document.getElementById('fTotalCount').value = '';
+      document.getElementById('fValidFrom').value = '';
+      document.getElementById('fValidTo').value = '';
+      document.getElementById('fDescription').value = '';
+      onTypeChange();
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function trimSeconds(dt) {
+      if (!dt) return '';
+      // 后台返回 "2026-05-04T00:00:00" 这类字符串，截取到分
+      return String(dt).slice(0, 16);
+    }
+
+    async function openEdit(id) {
+      const result = await api(`/api/admin/coupon-templates/${id}`);
+      if (result.code !== 200 || !result.data) {
+        showToast(result.msg || '获取详情失败', 'err');
+        return;
+      }
+      const d = result.data;
+      document.getElementById('modalTitle').textContent = '编辑优惠券模板';
+      document.getElementById('fId').value = d.id;
+      document.getElementById('fName').value = d.name || '';
+      document.getElementById('fType').value = d.type || 'FULL_REDUCE';
+      document.getElementById('fThreshold').value = d.threshold || 0;
+      document.getElementById('fDiscountValue').value = d.discountValue || '';
+      document.getElementById('fTotalCount').value = d.totalCount || '';
+      document.getElementById('fValidFrom').value = trimSeconds(d.validFrom);
+      document.getElementById('fValidTo').value = trimSeconds(d.validTo);
+      document.getElementById('fDescription').value = d.description || '';
+      onTypeChange();
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('active');
+    }
+
+    function fmtBackendDt(localDt) {
+      if (!localDt) return null;
+      // datetime-local 给的是 YYYY-MM-DDTHH:mm，补上 :00
+      return localDt.length === 16 ? localDt + ':00' : localDt;
+    }
+
+    async function saveCoupon(e) {
+      e.preventDefault();
+      const id = document.getElementById('fId').value;
+      const body = {
+        name: document.getElementById('fName').value.trim(),
+        type: document.getElementById('fType').value,
+        threshold: Number(document.getElementById('fThreshold').value || 0),
+        discountValue: Number(document.getElementById('fDiscountValue').value),
+        totalCount: Number(document.getElementById('fTotalCount').value),
+        validFrom: fmtBackendDt(document.getElementById('fValidFrom').value),
+        validTo: fmtBackendDt(document.getElementById('fValidTo').value),
+        description: document.getElementById('fDescription').value.trim(),
+      };
+      const path = id ? `/api/admin/coupon-templates/${id}` : '/api/admin/coupon-templates';
+      const method = id ? 'PUT' : 'POST';
+      const result = await api(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (result.code === 200) {
+        showToast('保存成功');
+        closeModal();
+        reload(currentPage);
+      } else {
+        showToast(result.msg || '保存失败', 'err');
+      }
+      return false;
+    }
+
+    async function issueT(id) {
+      if (!confirm('开始发放后用户可在领券中心领取，确定吗？')) return;
+      const result = await api(`/api/admin/coupon-templates/${id}/issue`, { method: 'POST' });
+      if (result.code === 200) { showToast('已开始发放'); reload(currentPage); }
+      else showToast(result.msg || '操作失败', 'err');
+    }
+
+    async function endT(id) {
+      if (!confirm('提前结束后将不再可领取，确定吗？')) return;
+      const result = await api(`/api/admin/coupon-templates/${id}/end`, { method: 'POST' });
+      if (result.code === 200) { showToast('已结束'); reload(currentPage); }
+      else showToast(result.msg || '操作失败', 'err');
+    }
+
+    async function delT(id) {
+      if (!confirm('删除后无法恢复，确定？')) return;
+      const result = await api(`/api/admin/coupon-templates/${id}`, { method: 'DELETE' });
+      if (result.code === 200) { showToast('已删除'); reload(currentPage); }
+      else showToast(result.msg || '删除失败', 'err');
+    }
+
+    (async () => {
+      await loadUser();
+      await reload();
+    })();
+  </script>
+</body>
+</html>

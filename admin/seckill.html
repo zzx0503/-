@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>后台管理 - 秒杀活动</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .book-suggest {
+      position: relative;
+    }
+    .book-suggest .panel {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: var(--shadow);
+      max-height: 220px;
+      overflow: auto;
+      z-index: 10;
+      display: none;
+    }
+    .book-suggest .panel.active { display: block; }
+    .book-suggest .item {
+      padding: 8px 10px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .book-suggest .item:last-child { border-bottom: none; }
+    .book-suggest .item:hover { background: #fffbf5; }
+    .book-suggest .item .small { color: var(--text-secondary); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x2699;&#xFE0F;</span>
+        <span>后台管理</span>
+      </div>
+      <nav class="sidebar-nav" id="adminSideNav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">ADMIN</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x26A1; 秒杀活动</h1>
+        <span style="color:var(--text-secondary);font-size:14px">配置秒杀图书与开始时间</span>
+      </div>
+      <div class="main-body">
+        <div class="admin-toolbar">
+          <select id="statusSel">
+            <option value="">全部状态</option>
+            <option value="READY">未开始</option>
+            <option value="RUNNING">进行中</option>
+            <option value="ENDED">已结束</option>
+          </select>
+          <button class="admin-btn" onclick="reload()">查询</button>
+          <div class="grow"></div>
+          <button class="admin-btn primary" onclick="openCreate()">+ 新增活动</button>
+        </div>
+
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>活动标题</th>
+              <th>图书</th>
+              <th>秒杀价</th>
+              <th>库存</th>
+              <th>限购</th>
+              <th>开始/结束</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:30px">加载中...</td></tr>
+          </tbody>
+        </table>
+        <div class="admin-pagi" id="pagi"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-mask" id="modal">
+    <div class="admin-dialog">
+      <h3 id="modalTitle">新增秒杀活动</h3>
+      <form onsubmit="return saveActivity(event)">
+        <input type="hidden" id="fId">
+        <div class="admin-form-row full">
+          <div><label>活动标题</label><input type="text" id="fTitle" maxlength="100" placeholder="如 双11狂欢"></div>
+        </div>
+        <div class="admin-form-row full">
+          <div class="book-suggest">
+            <label>选择图书 *</label>
+            <input type="text" id="fBookKw" placeholder="搜索书名/作者..." autocomplete="off" oninput="searchBook()">
+            <div class="panel" id="bookPanel"></div>
+            <div id="fBookPicked" style="margin-top:6px;font-size:13px;color:var(--text-secondary)">未选择</div>
+            <input type="hidden" id="fBookId">
+          </div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>秒杀价 *</label><input type="number" id="fPrice" step="0.01" min="0.01" required></div>
+          <div><label>总库存 *</label><input type="number" id="fStock" min="1" required></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>每人限购</label><input type="number" id="fPerLimit" min="1" value="1"></div>
+          <div></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>开始时间 *</label><input type="datetime-local" id="fStart" required></div>
+          <div><label>结束时间 *</label><input type="datetime-local" id="fEnd" required></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="admin-btn" onclick="closeModal()">取消</button>
+          <button type="submit" class="admin-btn primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="./common.js"></script>
+  <script>
+    setActiveNav('seckill');
+
+    const STATUS_LABEL = {
+      READY:   { txt: '未开始', cls: 'tag yellow' },
+      RUNNING: { txt: '进行中', cls: 'tag green' },
+      ENDED:   { txt: '已结束', cls: 'tag gray' },
+    };
+
+    let currentPage = 1;
+    const PAGE_SIZE = 10;
+
+    async function reload(page) {
+      currentPage = page || 1;
+      const status = document.getElementById('statusSel').value;
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      params.set('page', currentPage);
+      params.set('size', PAGE_SIZE);
+      const result = await api('/api/admin/seckill-activities?' + params.toString());
+      const tbody = document.getElementById('tbody');
+      if (result.code !== 200 || !result.data) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:30px">${result.msg || '加载失败'}</td></tr>`;
+        document.getElementById('pagi').innerHTML = '';
+        return;
+      }
+      const list = result.data.list || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:30px">暂无活动</td></tr>';
+      } else {
+        tbody.innerHTML = list.map(a => {
+          const st = STATUS_LABEL[a.status] || { txt: a.status, cls: 'tag gray' };
+          return `
+            <tr>
+              <td>${escapeHtml(a.title || '--')}</td>
+              <td>
+                <div style="font-weight:600">${escapeHtml(a.bookTitle || '--')}</div>
+                <div style="color:var(--text-secondary);font-size:12px">${escapeHtml(a.bookAuthor || '')}</div>
+              </td>
+              <td>
+                <div style="color:#e74c3c;font-weight:600">${fmtMoney(a.seckillPrice)}</div>
+                ${a.originalPrice ? `<div style="text-decoration:line-through;color:var(--text-secondary);font-size:12px">${fmtMoney(a.originalPrice)}</div>` : ''}
+              </td>
+              <td>${a.soldCount || 0} / ${a.totalStock || 0}</td>
+              <td>${a.perUserLimit || 1}</td>
+              <td style="font-size:12px">
+                ${fmtDateTime(a.startTime)}<br>
+                <span style="color:var(--text-secondary)">至 ${fmtDateTime(a.endTime)}</span>
+              </td>
+              <td><span class="${st.cls}">${st.txt}</span></td>
+              <td>
+                ${a.status === 'READY' ? `<button class="admin-btn primary" onclick="startA(${a.id})">开始</button>` : ''}
+                ${a.status === 'RUNNING' ? `<button class="admin-btn danger" onclick="endA(${a.id})">提前结束</button>` : ''}
+                ${a.status === 'READY' ? `<button class="admin-btn" onclick="openEdit(${a.id})">编辑</button>` : ''}
+                ${a.status === 'READY' ? `<button class="admin-btn danger" onclick="delA(${a.id})">删除</button>` : ''}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+      renderPagi(result.data.total || 0);
+    }
+
+    function renderPagi(total) {
+      const totalPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const wrap = document.getElementById('pagi');
+      wrap.innerHTML = `
+        <button onclick="reload(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+        <button class="cur">${currentPage} / ${totalPage}</button>
+        <button onclick="reload(${currentPage + 1})" ${currentPage >= totalPage ? 'disabled' : ''}>下一页</button>
+      `;
+    }
+
+    let suggestTimer = null;
+    let suggestCache = {};
+
+    async function searchBook() {
+      clearTimeout(suggestTimer);
+      const kw = document.getElementById('fBookKw').value.trim();
+      if (!kw) { document.getElementById('bookPanel').classList.remove('active'); return; }
+      suggestTimer = setTimeout(async () => {
+        const result = await api('/api/book/search?keyword=' + encodeURIComponent(kw) + '&page=1&size=8');
+        const panel = document.getElementById('bookPanel');
+        const list = (result.code === 200 && result.data && result.data.list) ? result.data.list : [];
+        if (!list.length) {
+          panel.innerHTML = '<div class="item" style="cursor:default;color:var(--text-secondary)">无匹配结果</div>';
+        } else {
+          suggestCache = {};
+          list.forEach(b => { suggestCache[b.id] = b; });
+          panel.innerHTML = list.map(b => `
+            <div class="item" onclick="pickBook(${b.id})">
+              <div>${escapeHtml(b.title)} <span class="small">${escapeHtml(b.author || '')}</span></div>
+              <div class="small">¥${Number(b.price || 0).toFixed(2)}</div>
+            </div>
+          `).join('');
+        }
+        panel.classList.add('active');
+      }, 250);
+    }
+
+    function pickBook(id) {
+      const b = suggestCache[id];
+      if (!b) return;
+      document.getElementById('fBookId').value = b.id;
+      document.getElementById('fBookPicked').textContent =
+        `已选择：${b.title}（ID ${b.id}，原价 ¥${Number(b.price || 0).toFixed(2)}）`;
+      document.getElementById('fBookKw').value = b.title;
+      document.getElementById('bookPanel').classList.remove('active');
+    }
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.book-suggest')) {
+        const p = document.getElementById('bookPanel');
+        if (p) p.classList.remove('active');
+      }
+    });
+
+    function openCreate() {
+      document.getElementById('modalTitle').textContent = '新增秒杀活动';
+      document.getElementById('fId').value = '';
+      document.getElementById('fTitle').value = '';
+      document.getElementById('fBookKw').value = '';
+      document.getElementById('fBookId').value = '';
+      document.getElementById('fBookPicked').textContent = '未选择';
+      document.getElementById('fPrice').value = '';
+      document.getElementById('fStock').value = '';
+      document.getElementById('fPerLimit').value = '1';
+      document.getElementById('fStart').value = '';
+      document.getElementById('fEnd').value = '';
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function trimSeconds(dt) {
+      if (!dt) return '';
+      return String(dt).slice(0, 16);
+    }
+
+    async function openEdit(id) {
+      const result = await api(`/api/admin/seckill-activities/${id}`);
+      if (result.code !== 200 || !result.data) {
+        showToast(result.msg || '获取详情失败', 'err');
+        return;
+      }
+      const a = result.data;
+      document.getElementById('modalTitle').textContent = '编辑秒杀活动';
+      document.getElementById('fId').value = a.id;
+      document.getElementById('fTitle').value = a.title || '';
+      document.getElementById('fBookId').value = a.bookId || '';
+      document.getElementById('fBookKw').value = a.bookTitle || '';
+      document.getElementById('fBookPicked').textContent = a.bookTitle ? `已选择：${a.bookTitle}（ID ${a.bookId}）` : '未选择';
+      document.getElementById('fPrice').value = a.seckillPrice || '';
+      document.getElementById('fStock').value = a.totalStock || '';
+      document.getElementById('fPerLimit').value = a.perUserLimit || 1;
+      document.getElementById('fStart').value = trimSeconds(a.startTime);
+      document.getElementById('fEnd').value = trimSeconds(a.endTime);
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('active');
+    }
+
+    function fmtBackendDt(localDt) {
+      if (!localDt) return null;
+      return localDt.length === 16 ? localDt + ':00' : localDt;
+    }
+
+    async function saveActivity(e) {
+      e.preventDefault();
+      const id = document.getElementById('fId').value;
+      const bookId = document.getElementById('fBookId').value;
+      if (!bookId) { showToast('请选择秒杀图书', 'err'); return false; }
+      const body = {
+        title: document.getElementById('fTitle').value.trim(),
+        bookId: Number(bookId),
+        seckillPrice: Number(document.getElementById('fPrice').value),
+        totalStock: Number(document.getElementById('fStock').value),
+        perUserLimit: Number(document.getElementById('fPerLimit').value || 1),
+        startTime: fmtBackendDt(document.getElementById('fStart').value),
+        endTime: fmtBackendDt(document.getElementById('fEnd').value),
+      };
+      const path = id ? `/api/admin/seckill-activities/${id}` : '/api/admin/seckill-activities';
+      const method = id ? 'PUT' : 'POST';
+      const result = await api(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (result.code === 200) {
+        showToast('保存成功');
+        closeModal();
+        reload(currentPage);
+      } else {
+        showToast(result.msg || '保存失败', 'err');
+      }
+      return false;
+    }
+
+    async function startA(id) {
+      if (!confirm('开始活动后用户即可秒杀，确定？')) return;
+      const result = await api(`/api/admin/seckill-activities/${id}/start`, { method: 'POST' });
+      if (result.code === 200) { showToast('已开始'); reload(currentPage); }
+      else showToast(result.msg || '操作失败', 'err');
+    }
+
+    async function endA(id) {
+      if (!confirm('提前结束活动？')) return;
+      const result = await api(`/api/admin/seckill-activities/${id}/end`, { method: 'POST' });
+      if (result.code === 200) { showToast('已结束'); reload(currentPage); }
+      else showToast(result.msg || '操作失败', 'err');
+    }
+
+    async function delA(id) {
+      if (!confirm('删除后无法恢复，确定？')) return;
+      const result = await api(`/api/admin/seckill-activities/${id}`, { method: 'DELETE' });
+      if (result.code === 200) { showToast('已删除'); reload(currentPage); }
+      else showToast(result.msg || '删除失败', 'err');
+    }
+
+    (async () => {
+      await loadUser();
+      await reload();
+    })();
+  </script>
+</body>
+</html>

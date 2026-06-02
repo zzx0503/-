@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 用户中心</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .user-profile-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 28px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .user-profile-card .avatar-large {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f7c89c, #d68a4f);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      flex-shrink: 0;
+    }
+    .user-profile-card .user-meta h2 {
+      font-size: 22px;
+      margin-bottom: 6px;
+      font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #d68a4f, #f7c89c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+    .user-profile-card .user-meta p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+    .user-profile-card .user-meta .role-tag {
+      display: inline-block;
+      background: var(--primary);
+      color: var(--white);
+      font-size: 12px;
+      padding: 2px 10px;
+      border-radius: 10px;
+    }
+
+    .balance-card {
+      background: linear-gradient(135deg, #f7c89c, #d68a4f);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .balance-card .balance-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 6px;
+    }
+    .balance-card .balance-value {
+      font-size: 32px;
+      font-weight: 700;
+    }
+    .balance-card .balance-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .balance-card .balance-actions button {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .balance-card .balance-actions button:hover {
+      transform: translateY(-2px);
+    }
+
+    .section-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+    .section-card h3 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logout-area {
+      text-align: center;
+      padding: 20px;
+    }
+    .logout-area .btn-logout-large {
+      padding: 12px 48px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--text-secondary);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .logout-area .btn-logout-large:hover {
+      background: #e74c3c;
+      color: var(--white);
+      border-color: #e74c3c;
+    }
+
+    .avatar-edit-wrap {
+      position: relative;
+      cursor: pointer;
+    }
+    .avatar-edit-wrap .avatar-overlay {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.35);
+      color: #fff;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+    .avatar-edit-wrap:hover .avatar-overlay { display: flex; }
+
+    .preset-avatars {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .preset-avatars img {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      object-fit: cover;
+    }
+    .preset-avatars img:hover,
+    .preset-avatars img.selected {
+      border-color: var(--primary);
+    }
+
+    .nickname-edit {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nickname-edit input {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      width: 160px;
+    }
+    .nickname-edit button {
+      padding: 4px 12px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .checkin-calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-top: 12px;
+    }
+    .checkin-calendar .day {
+      text-align: center;
+      padding: 6px 2px;
+      border-radius: 4px;
+      font-size: 12px;
+      background: var(--white);
+      border: 1px solid var(--border);
+    }
+    .checkin-calendar .day.checked {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .checkin-calendar .day.today {
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 380px;
+      max-width: 92vw;
+      box-shadow: var(--shadow);
+    }
+    .modal-box h3 { margin-bottom: 14px; }
+    .modal-box .balance-now {
+      background: #fff8f1;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+    }
+    .modal-box .balance-now strong {
+      color: #d68a4f;
+      font-size: 16px;
+      margin-left: 4px;
+    }
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .preset-grid button {
+      padding: 10px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--white);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .preset-grid button.active,
+    .preset-grid button:hover {
+      border-color: var(--primary);
+      background: #fffaf3;
+      color: var(--primary);
+    }
+    .recharge-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+      outline: none;
+      box-sizing: border-box;
+      margin-bottom: 14px;
+    }
+    .recharge-input:focus { border-color: var(--primary); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-actions button {
+      padding: 8px 22px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .modal-actions .btn-confirm {
+      background: var(--primary);
+      color: var(--white);
+      border-color: var(--primary);
+      font-weight: 600;
+    }
+    .modal-actions .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item active" href="user.html">
+          <span>&#x1F464;</span>
+          <span>用户中心</span>
+        </a>
+        <a class="nav-item" href="home.html">
+          <span>&#x1F3E0;</span>
+          <span>首页</span>
+        </a>
+        <a class="nav-item" href="favorite.html">
+          <span>&#x1F4D6;</span>
+          <span>我的书架</span>
+        </a>
+        <a class="nav-item" href="cart.html">
+          <span>&#x1F6D2;</span>
+          <span>购物车</span>
+        </a>
+        <a class="nav-item" href="order.html">
+          <span>&#x1F4E6;</span>
+          <span>我的订单</span>
+        </a>
+        <a class="nav-item" href="promotions.html">
+          <span>&#x1F381;</span>
+          <span>优惠</span>
+        </a>
+        <a class="nav-item" href="ai-chat.html">
+          <span>&#x1F916;</span>
+          <span>万事通</span>
+        </a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span>
+          <span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F464; 用户中心</h1>
+        <span style="color:var(--text-secondary);font-size:14px">管理您的账户信息与地址</span>
+      </div>
+      <div class="main-body">
+
+        <!-- User Profile -->
+        <div class="user-profile-card" id="userProfile">
+          <div class="avatar-edit-wrap" onclick="document.getElementById('avatarInput').click()">
+            <div class="avatar-large" id="avatarBox">&#x1F464;</div>
+            <div class="avatar-overlay">更换头像</div>
+            <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+          </div>
+          <div class="user-meta">
+            <div style="display:flex;align-items:center;gap:6px">
+              <h2 id="upNickname">--</h2>
+              <span style="cursor:pointer;font-size:15px;color:var(--text-secondary);padding:3px;border-radius:4px;transition:background 0.2s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='transparent'" onclick="editNickname()" title="修改昵称">&#x270F;</span>
+            </div>
+            <div class="nickname-edit" id="nicknameEdit" style="display:none;margin-bottom:8px">
+              <input type="text" id="nicknameInput" maxlength="30" placeholder="输入昵称">
+              <button onclick="saveNickname()">保存</button>
+              <button onclick="cancelNickname()" style="background:#ccc">取消</button>
+            </div>
+            <p id="upUsername">用户名: --</p>
+            <p id="upPhone">手机号: --</p>
+            <span class="role-tag" id="upRole">USER</span>
+          </div>
+        </div>
+
+        <!-- 预设头像 -->
+        <div class="section-card" id="presetCard" style="display:none">
+          <h3>选择预设头像</h3>
+          <div class="preset-avatars" id="presetAvatars"></div>
+        </div>
+
+        <!-- 签到 -->
+        <div class="section-card">
+          <h3>&#x1F4C5; 每日签到</h3>
+          <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+            <div style="text-align:center">
+              <div style="font-size:32px;font-weight:700;color:var(--primary)" id="streakDays">0</div>
+              <div style="font-size:12px;color:var(--text-secondary)">连续签到天数</div>
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">
+                今日奖励: <strong id="todayReward" style="color:var(--primary)">¥0.10</strong>
+              </div>
+              <button class="btn-primary" id="checkinBtn" onclick="doCheckin()" style="padding:10px 28px">立即签到</button>
+            </div>
+          </div>
+          <div class="checkin-calendar" id="checkinCalendar"></div>
+        </div>
+
+        <!-- Balance -->
+        <div class="balance-card">
+          <div>
+            <div class="balance-label">账户余额</div>
+            <div class="balance-value" id="balanceValue">&yen;0.00</div>
+          </div>
+          <div class="balance-actions">
+            <button onclick="showTransactions()">明细</button>
+            <button onclick="recharge()">充值</button>
+          </div>
+        </div>
+
+        <!-- Address Management -->
+        <div class="section-card">
+          <h3>&#x1F4CD; 地址管理</h3>
+          <div class="address-list" id="addressList">
+            <p style="color:var(--text-secondary)">加载中...</p>
+          </div>
+
+          <div class="address-form" style="margin-top:20px">
+            <h4 style="margin-bottom:16px">新增地址</h4>
+            <form onsubmit="return addAddress(event)">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>收货人</label>
+                  <input type="text" id="addrReceiver" placeholder="姓名" required>
+                </div>
+                <div class="form-group">
+                  <label>手机号</label>
+                  <input type="text" id="addrPhone" placeholder="11位手机号" required>
+                </div>
+                <div class="form-group">
+                  <label>省份</label>
+                  <input type="text" id="addrProvince" placeholder="省份" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>城市</label>
+                  <input type="text" id="addrCity" placeholder="城市" required>
+                </div>
+                <div class="form-group">
+                  <label>区县</label>
+                  <input type="text" id="addrDistrict" placeholder="区县" required>
+                </div>
+                <div class="form-group">
+                  <label>详细地址</label>
+                  <input type="text" id="addrDetail" placeholder="街道、门牌号等" required>
+                </div>
+              </div>
+              <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+                <input type="checkbox" id="addrDefault" style="width:auto">
+                <label for="addrDefault" style="margin-bottom:0">设为默认地址</label>
+              </div>
+              <button type="submit" class="btn-primary" style="width:auto;padding:12px 32px">保存地址</button>
+              <span class="error-msg" id="addrError" style="margin-left:16px;display:inline"></span>
+            </form>
+          </div>
+        </div>
+
+        <!-- Logout -->
+        <div class="logout-area">
+          <button class="btn-logout-large" onclick="logout()">退出登录</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="rechargeModal">
+    <div class="modal-box">
+      <h3>&#x1F4B0; 余额充值</h3>
+      <div class="balance-now">当前余额：<strong id="rcCurBalance">¥0.00</strong></div>
+      <div class="preset-grid" id="presetGrid">
+        <button data-amount="50" onclick="pickAmount(50, this)">¥50</button>
+        <button data-amount="100" onclick="pickAmount(100, this)">¥100</button>
+        <button data-amount="200" onclick="pickAmount(200, this)">¥200</button>
+        <button data-amount="500" onclick="pickAmount(500, this)">¥500</button>
+      </div>
+      <input type="number" class="recharge-input" id="rcAmount" placeholder="或输入自定义金额" min="0.01" step="0.01" oninput="onAmountInput()">
+      <div class="modal-actions">
+        <button onclick="closeRecharge()">取消</button>
+        <button class="btn-confirm" id="rcConfirm" onclick="doRecharge()" disabled>确认充值</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="txModal">
+    <div class="modal-box" style="width:520px;max-height:80vh;display:flex;flex-direction:column">
+      <h3>&#x1F4B0; 余额明细</h3>
+      <div id="txList" style="overflow:auto;max-height:60vh">
+        <p style="color:var(--text-secondary);text-align:center">加载中...</p>
+      </div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button onclick="closeTransactions()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      window.location.href = 'index.html';
+    }
+
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    let currentAvatarKey = '';
+    let currentNickname = '';
+
+    async function loadUser() {
+      const result = await api('/api/user/me');
+      if (result.code === 200) {
+        const d = result.data;
+        const displayName = d.nickname || d.username;
+        currentNickname = d.nickname || '';
+        document.getElementById('sideName').textContent = displayName;
+        document.getElementById('sideRole').textContent = d.role || 'USER';
+        document.getElementById('upNickname').textContent = d.nickname ? d.nickname : '未设置昵称';
+        document.getElementById('upUsername').textContent = '账户名: ' + d.username;
+        document.getElementById('upPhone').textContent = '手机号: ' + (d.phone || '--');
+        document.getElementById('upRole').textContent = d.role || 'USER';
+        if (d.role === 'ADMIN') {
+          document.getElementById('adminNav').style.display = 'flex';
+        }
+        if (d.avatarUrl) {
+          renderAvatar(d.avatarUrl);
+        }
+      } else {
+        logout();
+      }
+    }
+
+    function renderAvatar(url) {
+      const box = document.getElementById('avatarBox');
+      box.style.backgroundImage = `url('${url}')`;
+      box.style.backgroundSize = 'cover';
+      box.style.backgroundPosition = 'center';
+      box.innerHTML = '';
+    }
+
+    async function uploadAvatar(input) {
+      const file = input.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { alert('头像不能超过2MB'); return; }
+      const formData = new FormData();
+      formData.append('file', file);
+      const result = await api('/api/user/me/avatar/upload', { method: 'POST', body: formData });
+      if (result.code === 200) {
+        renderAvatar(result.data.avatarUrl);
+        alert('头像上传成功');
+      } else {
+        alert(result.msg || '上传失败');
+      }
+      input.value = '';
+    }
+
+    async function loadPresets() {
+      const result = await api('/api/user/me/avatar/presets');
+      if (result.code === 200 && result.data && result.data.length) {
+        document.getElementById('presetCard').style.display = '';
+        document.getElementById('presetAvatars').innerHTML = result.data.map(item =>
+          `<img src="${item.url}" onerror="this.style.display='none'" onclick="pickPresetAvatar('${item.key}', '${item.url}')" title="点击选择" alt="预设头像">`
+        ).join('');
+      }
+    }
+
+    async function pickPresetAvatar(key, fullUrl) {
+      const result = await api('/api/user/me/avatar', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarKey: key })
+      });
+      if (result.code === 200) {
+        renderAvatar(fullUrl);
+        alert('头像已更换');
+      } else {
+        alert(result.msg || '更换失败');
+      }
+    }
+
+    function editNickname() {
+      document.getElementById('nicknameEdit').style.display = 'flex';
+      document.getElementById('nicknameInput').value = currentNickname;
+      document.getElementById('nicknameInput').focus();
+    }
+
+    function cancelNickname() {
+      document.getElementById('nicknameEdit').style.display = 'none';
+    }
+
+    async function saveNickname() {
+      const val = document.getElementById('nicknameInput').value.trim();
+      if (!val) { alert('昵称不能为空'); return; }
+      const result = await api('/api/user/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: val, gender: null, birthday: null })
+      });
+      if (result.code === 200) {
+        currentNickname = val;
+        document.getElementById('upNickname').textContent = val;
+        document.getElementById('sideName').textContent = val;
+        cancelNickname();
+      } else {
+        alert(result.msg || '保存失败');
+      }
+    }
+
+    async function loadCheckin() {
+      const result = await api('/api/checkin/status');
+      if (result.code !== 200) return;
+      const d = result.data;
+      document.getElementById('streakDays').textContent = d.currentStreak;
+      document.getElementById('todayReward').textContent = '¥' + Number(d.todayReward || 0).toFixed(2);
+      const btn = document.getElementById('checkinBtn');
+      btn.textContent = d.checkedInToday ? '今日已签到' : '立即签到';
+      btn.disabled = d.checkedInToday;
+      renderCalendar(d.monthCheckedDates || []);
+    }
+
+    function renderCalendar(checkedDates) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDay = new Date(year, month, 1).getDay();
+      const checkedSet = new Set((checkedDates || []).map(d => {
+        const dt = new Date(d);
+        return dt.getDate();
+      }));
+      let html = '';
+      const weekdays = ['日','一','二','三','四','五','六'];
+      weekdays.forEach(w => { html += `<div class="day" style="background:transparent;border:none;font-weight:600">${w}</div>`; });
+      for (let i = 0; i < firstDay; i++) html += '<div class="day" style="background:transparent;border:none"></div>';
+      for (let i = 1; i <= daysInMonth; i++) {
+        const isChecked = checkedSet.has(i);
+        const isToday = i === today.getDate();
+        let cls = 'day';
+        if (isChecked) cls += ' checked';
+        if (isToday) cls += ' today';
+        html += `<div class="${cls}">${i}</div>`;
+      }
+      document.getElementById('checkinCalendar').innerHTML = html;
+    }
+
+    async function doCheckin() {
+      const btn = document.getElementById('checkinBtn');
+      btn.disabled = true;
+      const result = await api('/api/checkin', { method: 'POST' });
+      if (result.code === 200) {
+        alert(`签到成功！连续${result.data.consecutiveDays}天，获得¥${Number(result.data.rewardAmount).toFixed(2)}`);
+        loadCheckin();
+        loadBalance();
+      } else {
+        alert(result.msg || '签到失败');
+        btn.disabled = false;
+      }
+    }
+
+    let currentBalance = 0;
+
+    async function loadBalance() {
+      const result = await api('/api/wallet/balance');
+      if (result.code === 200) {
+        currentBalance = Number(result.data || 0);
+        document.getElementById('balanceValue').textContent = '¥' + currentBalance.toFixed(2);
+      }
+    }
+
+    function recharge() {
+      document.getElementById('rcCurBalance').textContent = '¥' + currentBalance.toFixed(2);
+      document.getElementById('rcAmount').value = '';
+      document.querySelectorAll('#presetGrid button').forEach(b => b.classList.remove('active'));
+      document.getElementById('rcConfirm').disabled = true;
+      document.getElementById('rechargeModal').classList.add('active');
+    }
+
+    function closeRecharge() {
+      document.getElementById('rechargeModal').classList.remove('active');
+    }
+
+    function pickAmount(value, btn) {
+      document.querySelectorAll('#presetGrid button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('rcAmount').value = value;
+      document.getElementById('rcConfirm').disabled = false;
+    }
+
+    function onAmountInput() {
+      document.querySelectorAll('#presetGrid button').forEach(b => b.classList.remove('active'));
+      const v = Number(document.getElementById('rcAmount').value);
+      document.getElementById('rcConfirm').disabled = !(v > 0);
+    }
+
+    async function doRecharge() {
+      const amount = Number(document.getElementById('rcAmount').value);
+      if (!(amount > 0)) { alert('请输入有效金额'); return; }
+      const btn = document.getElementById('rcConfirm');
+      btn.disabled = true;
+      const before = currentBalance;
+      const result = await api('/api/wallet/recharge?amount=' + amount, { method: 'POST' });
+      if (result.code === 200) {
+        await loadBalance();
+        closeRecharge();
+        alert(`充值成功！\n充值前：¥${before.toFixed(2)}\n充值金额：¥${amount.toFixed(2)}\n充值后：¥${currentBalance.toFixed(2)}`);
+      } else {
+        alert(result.msg || '充值失败');
+        btn.disabled = false;
+      }
+    }
+
+    function showTransactions() {
+      document.getElementById('txModal').classList.add('active');
+      loadTransactions();
+    }
+
+    function closeTransactions() {
+      document.getElementById('txModal').classList.remove('active');
+    }
+
+    async function loadTransactions() {
+      const container = document.getElementById('txList');
+      container.innerHTML = '<p style="color:var(--text-secondary);text-align:center">加载中...</p>';
+      const result = await api('/api/wallet/transactions?page=1&size=50');
+      if (result.code !== 200 || !result.data || !result.data.list || result.data.list.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-secondary);text-align:center">暂无交易记录</p>';
+        return;
+      }
+      const typeMap = { RECHARGE: '充值', PAY: '支付', REFUND: '退款', CHECKIN: '签到奖励' };
+      const rows = result.data.list.map(tx => {
+        const typeLabel = typeMap[tx.type] || tx.type;
+        const time = tx.createTime ? new Date(tx.createTime).toLocaleString() : '--';
+        const amountClass = tx.type === 'PAY' ? 'color:#e74c3c' : 'color:#27ae60';
+        const sign = tx.type === 'PAY' ? '-' : '+';
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:14px;font-weight:600">${typeLabel}</div>
+              <div style="font-size:12px;color:var(--text-secondary)">${time}</div>
+              <div style="font-size:12px;color:var(--text-secondary)">${tx.remark || ''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:16px;font-weight:700;${amountClass}">${sign}¥${Number(tx.amount || 0).toFixed(2)}</div>
+              <div style="font-size:12px;color:var(--text-secondary)">余额: ¥${Number(tx.balanceAfter || 0).toFixed(2)}</div>
+            </div>
+          </div>`;
+      }).join('');
+      container.innerHTML = rows;
+    }
+
+    async function loadAddresses() {
+      const result = await api('/api/address');
+      const list = document.getElementById('addressList');
+      if (result.code !== 200 || !result.data || result.data.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-secondary)">暂无地址，请添加。</p>';
+        return;
+      }
+      list.innerHTML = result.data.map(a => `
+        <div class="address-item">
+          <div class="address-info">
+            <h4>${a.receiver} <span style="color:var(--text-secondary);font-size:14px;font-weight:normal">${a.phone}</span>${a.isDefault ? '<span class="address-tag">默认</span>' : ''}</h4>
+            <p>${a.province || ''} ${a.city || ''} ${a.district || ''} ${a.detailAddress}</p>
+          </div>
+          <div class="address-actions" style="display:flex;gap:8px;align-items:center">
+            ${a.isDefault ? '' : `<button class="admin-btn" style="font-size:12px;padding:4px 10px" onclick="setDefaultAddress(${a.id})">设为默认</button>`}
+            <button class="admin-btn" style="font-size:12px;padding:4px 10px;background:#e74c3c;color:#fff;border-color:#e74c3c" onclick="deleteAddress(${a.id})">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function deleteAddress(id) {
+      if (!confirm('确定删除该地址吗？')) return;
+      const result = await api('/api/address/' + id, { method: 'DELETE' });
+      if (result.code === 200) {
+        loadAddresses();
+      } else {
+        alert(result.msg || '删除失败');
+      }
+    }
+
+    async function setDefaultAddress(id) {
+      const result = await api('/api/address/' + id + '/default', { method: 'PUT' });
+      if (result.code === 200) {
+        loadAddresses();
+      } else {
+        alert(result.msg || '设置失败');
+      }
+    }
+
+    async function addAddress(e) {
+      e.preventDefault();
+      document.getElementById('addrError').textContent = '';
+      try {
+        const result = await api('/api/address', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            receiver: document.getElementById('addrReceiver').value,
+            phone: document.getElementById('addrPhone').value,
+            province: document.getElementById('addrProvince').value,
+            city: document.getElementById('addrCity').value,
+            district: document.getElementById('addrDistrict').value,
+            detailAddress: document.getElementById('addrDetail').value,
+            isDefault: document.getElementById('addrDefault').checked ? 1 : 0
+          })
+        });
+        if (result.code === 200) {
+          e.target.reset();
+          loadAddresses();
+        } else {
+          document.getElementById('addrError').textContent = result.msg || '添加失败';
+        }
+      } catch (err) {
+        document.getElementById('addrError').textContent = '网络错误';
+      }
+      return false;
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    loadUser();
+    loadBalance();
+    loadAddresses();
+    loadCheckin();
+    loadPresets();
+  </script>
+</body>
+</html>

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 我的订单</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .order-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .order-tab {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--white);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .order-tab.active {
+      background: var(--primary);
+      color: var(--white);
+      border-color: var(--primary);
+    }
+    .order-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .order-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: #fff8f1;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .order-head .ono {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .order-head .status {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #fef0e6;
+      color: #d68a4f;
+    }
+    .order-head .status.paid    { background:#e6f7ed; color:#28a745; }
+    .order-head .status.shipped { background:#e6f1ff; color:#1d6fff; }
+    .order-head .status.completed { background:#eee; color:#666; }
+    .order-head .status.cancelled { background:#fbe9e9; color:#c0392b; }
+
+    .order-items {
+      padding: 8px 18px;
+    }
+    .order-item-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .order-item-row:last-child { border-bottom: none; }
+    .order-item-row .cover {
+      width: 56px;
+      height: 70px;
+      background-size: cover;
+      background-position: center;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .order-item-row .info {
+      flex: 1;
+      min-width: 0;
+      font-size: 14px;
+    }
+    .order-item-row .info .t {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .order-item-row .info .p {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .order-item-row .qty {
+      width: 60px;
+      text-align: right;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .order-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      background: #fffaf3;
+    }
+    .order-foot .total {
+      font-size: 14px;
+    }
+    .order-foot .total strong {
+      color: #e74c3c;
+      font-size: 20px;
+      margin-left: 4px;
+    }
+    .order-foot .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .order-foot .actions button {
+      padding: 6px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--white);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .order-foot .actions .btn-primary {
+      background: var(--primary);
+      color: var(--white);
+      border-color: var(--primary);
+    }
+    .order-foot .actions .btn-danger {
+      color: #c0392b;
+      border-color: #f0c4be;
+    }
+    .pager {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .pager button {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--white);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+    .pager .pn {
+      align-self: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+    .empty-orders {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+    .seckill-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: linear-gradient(135deg,#ff5f6d,#ffc371);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      margin-right: 6px;
+    }
+    .order-head .expire-tip {
+      font-size: 12px;
+      color: #c0392b;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html"><span>&#x1F464;</span><span>用户中心</span></a>
+        <a class="nav-item" href="home.html"><span>&#x1F3E0;</span><span>首页</span></a>
+        <a class="nav-item" href="favorite.html"><span>&#x1F4D6;</span><span>我的书架</span></a>
+        <a class="nav-item" href="cart.html"><span>&#x1F6D2;</span><span>购物车</span></a>
+        <a class="nav-item active" href="order.html"><span>&#x1F4E6;</span><span>我的订单</span></a>
+        <a class="nav-item" href="promotions.html"><span>&#x1F381;</span><span>优惠</span></a>
+        <a class="nav-item" href="ai-chat.html"><span>&#x1F916;</span><span>万事通</span></a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span><span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4E6; 我的订单</h1>
+        <span style="color:var(--text-secondary);font-size:14px">查看历史订单与处理待办</span>
+      </div>
+      <div class="main-body">
+        <div class="order-tabs" id="tabs"></div>
+        <div id="orderList"></div>
+        <div class="pager" id="pager" style="display:none">
+          <button id="prevBtn">上一页</button>
+          <span class="pn"><span id="curPage">1</span> / <span id="totalPage">1</span></span>
+          <button id="nextBtn">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) window.location.href = 'index.html';
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    const STATUS_TABS = [
+      { code: '',           name: '全部' },
+      { code: 'PENDING_PAY', name: '待付款' },
+      { code: 'PAID',        name: '待发货' },
+      { code: 'SHIPPED',     name: '待收货' },
+      { code: 'COMPLETED',   name: '已完成' },
+      { code: 'CANCELLED',   name: '已取消' }
+    ];
+    const STATUS_LABEL = {
+      PENDING_PAY: '待付款',
+      PAID: '待发货',
+      SHIPPED: '待收货',
+      COMPLETED: '已完成',
+      CANCELLED: '已取消'
+    };
+    const STATUS_CLASS = {
+      PENDING_PAY: '',
+      PAID: 'paid',
+      SHIPPED: 'shipped',
+      COMPLETED: 'completed',
+      CANCELLED: 'cancelled'
+    };
+    let currentStatus = '';
+    let curPage = 1;
+    const pageSize = 8;
+    let mergedOrders = [];
+
+    function renderTabs() {
+      document.getElementById('tabs').innerHTML = STATUS_TABS.map(t =>
+        `<div class="order-tab ${t.code === currentStatus ? 'active' : ''}" onclick="selectTab('${t.code}')">${t.name}</div>`
+      ).join('');
+    }
+
+    function selectTab(code) {
+      currentStatus = code;
+      curPage = 1;
+      renderTabs();
+      loadOrders();
+    }
+
+    async function loadOrders() {
+      const container = document.getElementById('orderList');
+      const skipSeckill = currentStatus === 'SHIPPED' || currentStatus === 'COMPLETED';
+
+      const regParams = new URLSearchParams();
+      if (currentStatus) regParams.append('status', currentStatus);
+      regParams.append('page', 1);
+      regParams.append('size', 100);
+      const regPromise = api('/api/order?' + regParams.toString());
+
+      let seckillPromise = Promise.resolve({ code: 200, data: { list: [] } });
+      if (!skipSeckill) {
+        if (currentStatus === 'CANCELLED') {
+          seckillPromise = Promise.all([
+            api('/api/seckill/orders?status=CANCELLED&page=1&size=100'),
+            api('/api/seckill/orders?status=EXPIRED&page=1&size=100')
+          ]).then(([a, b]) => {
+            const list = [];
+            if (a.code === 200 && a.data && a.data.list) list.push(...a.data.list);
+            if (b.code === 200 && b.data && b.data.list) list.push(...b.data.list);
+            return { code: 200, data: { list } };
+          }).catch(() => ({ code: 200, data: { list: [] } }));
+        } else {
+          const sk = new URLSearchParams();
+          if (currentStatus) sk.append('status', currentStatus);
+          sk.append('page', 1);
+          sk.append('size', 100);
+          seckillPromise = api('/api/seckill/orders?' + sk.toString()).catch(() => ({ code: 200, data: { list: [] } }));
+        }
+      }
+
+      const [regResult, seckillResult] = await Promise.all([regPromise, seckillPromise]);
+
+      if (regResult.code !== 200 && (skipSeckill || seckillResult.code !== 200)) {
+        mergedOrders = [];
+        container.innerHTML = `<div class="empty-orders">${regResult.msg || '加载失败'}</div>`;
+        document.getElementById('pager').style.display = 'none';
+        return;
+      }
+
+      const regList = (regResult.code === 200 && regResult.data && regResult.data.list)
+        ? regResult.data.list.map(o => Object.assign({}, o, { _kind: 'regular' })) : [];
+      const seckillList = (seckillResult.code === 200 && seckillResult.data && seckillResult.data.list)
+        ? seckillResult.data.list.map(o => Object.assign({}, o, { _kind: 'seckill' })) : [];
+
+      const merged = regList.concat(seckillList).sort((a, b) => {
+        const ta = String(a.createTime || '');
+        const tb = String(b.createTime || '');
+        return tb.localeCompare(ta);
+      });
+
+      mergedOrders = merged;
+      curPage = 1;
+      await renderPage();
+    }
+
+    async function renderPage() {
+      const container = document.getElementById('orderList');
+      if (!mergedOrders.length) {
+        container.innerHTML = `<div class="empty-orders">暂无订单</div>`;
+        document.getElementById('pager').style.display = 'none';
+        return;
+      }
+
+      const total = mergedOrders.length;
+      const totalPage = Math.max(1, Math.ceil(total / pageSize));
+      if (curPage > totalPage) curPage = totalPage;
+      if (curPage < 1) curPage = 1;
+      const start = (curPage - 1) * pageSize;
+      const pageItems = mergedOrders.slice(start, start + pageSize);
+
+      const cards = await Promise.all(pageItems.map(buildCardHtml));
+      container.innerHTML = cards.join('');
+      document.getElementById('curPage').textContent = curPage;
+      document.getElementById('totalPage').textContent = totalPage;
+      document.getElementById('prevBtn').disabled = curPage <= 1;
+      document.getElementById('nextBtn').disabled = curPage >= totalPage;
+      document.getElementById('pager').style.display = '';
+    }
+
+    async function buildCardHtml(o) {
+      if (o._kind === 'seckill') return buildSeckillCardHtml(o);
+      return buildRegularCardHtml(o);
+    }
+
+    async function buildRegularCardHtml(o) {
+      const detail = await api('/api/order/' + o.orderNo);
+      const items = (detail.code === 200 && detail.data && detail.data.items) ? detail.data.items : [];
+      const itemsHtml = items.map(it => `
+        <div class="order-item-row" onclick="location.href='detail.html?id=${it.bookId}'">
+          <div class="cover" style="background-image:url('${it.bookCover || `https://picsum.photos/seed/${it.bookId}/200/250`}')"></div>
+          <div class="info">
+            <div class="t">${escapeHtml(it.bookTitle)}</div>
+            <div class="p">¥${Number(it.unitPrice).toFixed(2)} × ${it.quantity}</div>
+          </div>
+          <div class="qty">¥${Number(it.subtotal).toFixed(2)}</div>
+        </div>
+      `).join('');
+      const statusLabel = STATUS_LABEL[o.status] || o.status;
+      const statusClass = STATUS_CLASS[o.status] || '';
+      const created = (o.createTime || '').replace('T', ' ');
+      return `
+        <div class="order-card">
+          <div class="order-head">
+            <span>下单时间：${created}</span>
+            <span class="ono">订单号：${o.orderNo}</span>
+            <span class="status ${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="order-items">${itemsHtml || '<div style="padding:12px;color:var(--text-secondary)">无商品</div>'}</div>
+          <div class="order-foot">
+            <div class="total">应付金额：<strong>¥${Number(o.payAmount).toFixed(2)}</strong></div>
+            <div class="actions">${renderActions(o)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildSeckillCardHtml(o) {
+      const cover = o.bookCover || `https://picsum.photos/seed/${o.bookId}/200/250`;
+      const itemsHtml = `
+        <div class="order-item-row" onclick="location.href='detail.html?id=${o.bookId}'">
+          <div class="cover" style="background-image:url('${cover}')"></div>
+          <div class="info">
+            <div class="t">${escapeHtml(o.bookTitle)}</div>
+            <div class="p">¥${Number(o.seckillPrice).toFixed(2)} × ${o.quantity}</div>
+          </div>
+          <div class="qty">¥${Number(o.totalAmount).toFixed(2)}</div>
+        </div>
+      `;
+      let statusKey = o.status;
+      if (statusKey === 'EXPIRED') statusKey = 'CANCELLED';
+      const statusLabelRaw = STATUS_LABEL[statusKey] || o.status;
+      const statusLabel = o.status === 'EXPIRED' ? '已过期' : statusLabelRaw;
+      const statusClass = STATUS_CLASS[statusKey] || '';
+      const created = (o.createTime || '').replace('T', ' ');
+
+      let expireTip = '';
+      if (o.status === 'PENDING_PAY' && o.expireTime) {
+        expireTip = `<span class="expire-tip">支付截止：${String(o.expireTime).replace('T', ' ')}</span>`;
+      }
+
+      return `
+        <div class="order-card">
+          <div class="order-head">
+            <span><span class="seckill-badge">秒杀</span>下单时间：${created}</span>
+            <span class="ono">订单号：${o.orderNo}</span>
+            ${expireTip}
+            <span class="status ${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="order-items">${itemsHtml}</div>
+          <div class="order-foot">
+            <div class="total">应付金额：<strong>¥${Number(o.totalAmount).toFixed(2)}</strong></div>
+            <div class="actions">${renderActions(o)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderActions(o) {
+      const kind = o._kind || 'regular';
+      const view = kind === 'regular'
+        ? `<button onclick="goDetail('${o.orderNo}')">查看详情</button>`
+        : '';
+      switch (o.status) {
+        case 'PENDING_PAY':
+          return `${view}<button class="btn-danger" onclick="cancelOrder('${o.orderNo}','${kind}')">取消</button><button class="btn-primary" onclick="payOrder('${o.orderNo}','${kind}')">立即支付</button>`;
+        case 'PAID':
+          return view;
+        case 'SHIPPED':
+          return `${view}<button class="btn-primary" onclick="confirmReceive('${o.orderNo}')">确认收货</button>`;
+        case 'COMPLETED':
+          return view;
+        default:
+          return view;
+      }
+    }
+
+    function goDetail(orderNo) {
+      location.href = 'order-detail.html?orderNo=' + encodeURIComponent(orderNo);
+    }
+
+    async function payOrder(orderNo, kind) {
+      kind = kind || 'regular';
+      if (kind === 'seckill') {
+        if (!confirm('确认支付该秒杀订单？')) return;
+        const result = await api('/api/seckill/orders/' + orderNo + '/pay', { method: 'POST' });
+        if (result.code === 200) {
+          alert('支付成功');
+          loadOrders();
+        } else {
+          alert(result.msg || '支付失败');
+        }
+        return;
+      }
+      const method = prompt('支付方式 (BALANCE / ALIPAY / WECHAT)：', 'BALANCE');
+      if (!method) return;
+      const result = await api('/api/order/' + orderNo + '/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payMethod: method.trim().toUpperCase() })
+      });
+      if (result.code === 200) {
+        alert('支付成功');
+        loadOrders();
+      } else {
+        alert(result.msg || '支付失败');
+      }
+    }
+
+    async function cancelOrder(orderNo, kind) {
+      kind = kind || 'regular';
+      if (!confirm('确定取消该订单？')) return;
+      const path = kind === 'seckill'
+        ? '/api/seckill/orders/' + orderNo + '/cancel'
+        : '/api/order/' + orderNo + '/cancel';
+      const result = await api(path, { method: 'PUT' });
+      if (result.code === 200) {
+        alert('已取消');
+        loadOrders();
+      } else {
+        alert(result.msg || '取消失败');
+      }
+    }
+
+    async function confirmReceive(orderNo) {
+      if (!confirm('确认已收到货物？')) return;
+      const result = await api('/api/order/' + orderNo + '/confirm', { method: 'PUT' });
+      if (result.code === 200) {
+        alert('确认收货成功');
+        loadOrders();
+      } else {
+        alert(result.msg || '操作失败');
+      }
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    document.getElementById('prevBtn').onclick = () => { if (curPage > 1) { curPage--; renderPage(); } };
+    document.getElementById('nextBtn').onclick = () => { curPage++; renderPage(); };
+
+    async function loadUser() {
+      try {
+        const result = await api('/api/user/me');
+        if (result.code === 200) {
+          const name = result.data.nickname || result.data.username;
+          document.getElementById('sideName').textContent = name;
+          document.getElementById('sideRole').textContent = result.data.role || 'USER';
+          if (result.data.role === 'ADMIN') document.getElementById('adminNav').style.display = 'flex';
+        } else {
+          logout();
+        }
+      } catch (e) {
+        document.getElementById('sideName').textContent = '未知';
+      }
+    }
+    function logout() { localStorage.clear(); location.href = 'index.html'; }
+
+    loadUser();
+    renderTabs();
+    loadOrders();
+  </script>
+</body>
+</html>

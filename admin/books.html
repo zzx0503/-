@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>后台管理 - 图书管理</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .book-cover-cell {
+      width: 40px; height: 56px;
+      background-size: cover; background-position: center;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .stock-cell {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .stock-cell button {
+      width: 22px; height: 22px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .stock-cell button:hover { border-color: var(--primary); color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x2699;&#xFE0F;</span>
+        <span>后台管理</span>
+      </div>
+      <nav class="sidebar-nav" id="adminSideNav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">ADMIN</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4DA; 图书管理</h1>
+        <span style="color:var(--text-secondary);font-size:14px">维护图书信息、库存与上下架</span>
+      </div>
+      <div class="main-body">
+        <div class="admin-toolbar">
+          <input type="text" id="kw" placeholder="书名/作者关键字" style="width:240px">
+          <select id="catSel">
+            <option value="">全部分类</option>
+          </select>
+          <button class="admin-btn" onclick="reload()">查询</button>
+          <div class="grow"></div>
+          <button class="admin-btn primary" onclick="openCreate()">+ 新增图书</button>
+        </div>
+
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>封面</th>
+              <th>书名</th>
+              <th>作者</th>
+              <th>分类</th>
+              <th>价格</th>
+              <th>库存</th>
+              <th>销量</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:30px">加载中...</td></tr>
+          </tbody>
+        </table>
+        <div class="admin-pagi" id="pagi"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增/编辑 modal -->
+  <div class="admin-mask" id="modal">
+    <div class="admin-dialog">
+      <h3 id="modalTitle">新增图书</h3>
+      <form id="bookForm" onsubmit="return saveBook(event)">
+        <input type="hidden" id="fId">
+        <div class="admin-form-row">
+          <div><label>ISBN *</label><input type="text" id="fIsbn" required maxlength="20"></div>
+          <div><label>状态 *</label>
+            <select id="fStatus">
+              <option value="1">上架</option>
+              <option value="0">下架</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-form-row full">
+          <div><label>书名 *</label><input type="text" id="fTitle" required maxlength="200"></div>
+        </div>
+        <div class="admin-form-row full">
+          <div><label>副标题</label><input type="text" id="fSubtitle" maxlength="200"></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>作者 *</label><input type="text" id="fAuthor" required maxlength="100"></div>
+          <div><label>译者</label><input type="text" id="fTranslator" maxlength="100"></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>出版社</label><input type="text" id="fPublisher" maxlength="100"></div>
+          <div><label>分类 *</label><select id="fCategory" required></select></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>售价 *</label><input type="number" id="fPrice" step="0.01" min="0" required></div>
+          <div><label>原价 *</label><input type="number" id="fOriginalPrice" step="0.01" min="0" required></div>
+        </div>
+        <div class="admin-form-row">
+          <div><label>库存 *</label><input type="number" id="fStock" min="0" required></div>
+          <div><label>出版日期</label><input type="date" id="fPublishDate"></div>
+        </div>
+        <div class="admin-form-row full">
+          <div>
+            <label>封面 Key</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="fCoverKey" maxlength="255" placeholder="可选,默认随机封面" style="flex:1">
+              <input type="file" id="fCoverFile" accept="image/*" style="display:none" onchange="uploadCover(this)">
+              <button type="button" class="admin-btn" id="btnUploadCover" onclick="document.getElementById('fCoverFile').click()">上传封面</button>
+            </div>
+          </div>
+        </div>
+        <div class="admin-form-row full">
+          <div><label>简介</label><textarea id="fDescription"></textarea></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="admin-btn" onclick="closeModal()">取消</button>
+          <button type="submit" class="admin-btn primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="./common.js"></script>
+  <script>
+    setActiveNav('books');
+
+    let categories = [];
+    let categoryMap = {};
+    let currentPage = 1;
+    const PAGE_SIZE = 10;
+
+    async function loadCategories() {
+      const result = await api('/api/category/tree');
+      if (result.code === 200 && result.data) {
+        // 拍平树
+        const flat = [];
+        const walk = (arr) => arr.forEach(c => {
+          flat.push({ id: c.id, name: c.name, status: c.status });
+          if (c.children && c.children.length) walk(c.children);
+        });
+        walk(result.data);
+        categories = flat;
+        categoryMap = {};
+        flat.forEach(c => { categoryMap[c.id] = c.name; });
+        document.getElementById('catSel').innerHTML = '<option value="">全部分类</option>' +
+          flat.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+        document.getElementById('fCategory').innerHTML =
+          flat.filter(c => c.status === 1).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+      }
+    }
+
+    async function reload(page) {
+      currentPage = page || 1;
+      const kw = document.getElementById('kw').value.trim();
+      const cat = document.getElementById('catSel').value;
+      const params = new URLSearchParams();
+      if (kw) params.set('keyword', kw);
+      if (cat) params.set('categoryId', cat);
+      params.set('page', currentPage);
+      params.set('size', PAGE_SIZE);
+      const result = await api('/api/book?' + params.toString());
+      const tbody = document.getElementById('tbody');
+      if (result.code !== 200 || !result.data) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:30px">${result.msg || '加载失败'}</td></tr>`;
+        document.getElementById('pagi').innerHTML = '';
+        return;
+      }
+      const list = result.data.list || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:30px">暂无图书</td></tr>';
+      } else {
+        tbody.innerHTML = list.map(b => `
+          <tr>
+            <td><div class="book-cover-cell" style="background-image:url('${b.coverKey || `https://picsum.photos/seed/${b.id}/120/160`}')"></div></td>
+            <td>
+              <div style="font-weight:600">${escapeHtml(b.title)}</div>
+              ${b.subtitle ? `<div style="color:var(--text-secondary);font-size:12px">${escapeHtml(b.subtitle)}</div>` : ''}
+            </td>
+            <td>${escapeHtml(b.author || '--')}</td>
+            <td>${escapeHtml(b.categoryName || '--')}</td>
+            <td>${fmtMoney(b.price)}</td>
+            <td>
+              <span class="stock-cell">
+                <button onclick="adjustStock(${b.id}, -1)">-</button>
+                <span style="min-width:30px;text-align:center">${b.stock != null ? b.stock : '--'}</span>
+                <button onclick="adjustStock(${b.id}, 1)">+</button>
+              </span>
+            </td>
+            <td>${b.salesCount || 0}</td>
+            <td>${renderBookStatus(b)}</td>
+            <td>
+              <button class="admin-btn" onclick="openEdit(${b.id})">编辑</button>
+              <button class="admin-btn" onclick="toggleStatus(${b.id})">上下架</button>
+              <button class="admin-btn danger" onclick="delBook(${b.id})">删除</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+      renderPagi(result.data.total || 0);
+    }
+
+    function renderBookStatus(b) {
+      // BookListVO 不带 status，不知道时给中性 tag
+      return '<span class="tag green">在售</span>';
+    }
+
+    function renderPagi(total) {
+      const totalPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const wrap = document.getElementById('pagi');
+      const buttons = [];
+      buttons.push(`<button onclick="reload(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>`);
+      buttons.push(`<button class="cur">${currentPage} / ${totalPage}</button>`);
+      buttons.push(`<button onclick="reload(${currentPage + 1})" ${currentPage >= totalPage ? 'disabled' : ''}>下一页</button>`);
+      wrap.innerHTML = buttons.join('');
+    }
+
+    async function adjustStock(id, delta) {
+      const result = await api(`/api/admin/book/${id}/stock?delta=${delta}`, { method: 'PUT' });
+      if (result.code === 200) {
+        showToast('库存已更新');
+        reload(currentPage);
+      } else {
+        showToast(result.msg || '调整库存失败', 'err');
+      }
+    }
+
+    async function toggleStatus(id) {
+      if (!confirm('确认切换上下架状态？')) return;
+      const result = await api(`/api/admin/book/${id}/status`, { method: 'PUT' });
+      if (result.code === 200) {
+        showToast('已切换状态');
+        reload(currentPage);
+      } else {
+        showToast(result.msg || '操作失败', 'err');
+      }
+    }
+
+    async function delBook(id) {
+      if (!confirm('删除后无法恢复，确定要删除吗？')) return;
+      const result = await api(`/api/admin/book/${id}`, { method: 'DELETE' });
+      if (result.code === 200) {
+        showToast('已删除');
+        reload(currentPage);
+      } else {
+        showToast(result.msg || '删除失败', 'err');
+      }
+    }
+
+    function openCreate() {
+      document.getElementById('modalTitle').textContent = '新增图书';
+      document.getElementById('fId').value = '';
+      document.getElementById('bookForm').reset();
+      document.getElementById('fStatus').value = '1';
+      document.getElementById('modal').classList.add('active');
+    }
+
+    async function openEdit(id) {
+      const result = await api('/api/book/' + id);
+      if (result.code !== 200 || !result.data) {
+        showToast(result.msg || '获取详情失败', 'err');
+        return;
+      }
+      const d = result.data;
+      document.getElementById('modalTitle').textContent = '编辑图书';
+      document.getElementById('fId').value = d.id;
+      document.getElementById('fIsbn').value = d.isbn || '';
+      document.getElementById('fTitle').value = d.title || '';
+      document.getElementById('fSubtitle').value = d.subtitle || '';
+      document.getElementById('fAuthor').value = d.author || '';
+      document.getElementById('fTranslator').value = d.translator || '';
+      document.getElementById('fPublisher').value = d.publisher || '';
+      document.getElementById('fCategory').value = d.categoryId || '';
+      document.getElementById('fPrice').value = d.price || '';
+      document.getElementById('fOriginalPrice').value = d.originalPrice || '';
+      document.getElementById('fStock').value = d.stock || 0;
+      document.getElementById('fPublishDate').value = d.publishDate || '';
+      document.getElementById('fCoverKey').value = d.coverKey || '';
+      document.getElementById('fDescription').value = d.description || '';
+      document.getElementById('fStatus').value = String(d.status != null ? d.status : 1);
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('active');
+    }
+
+    async function saveBook(e) {
+      e.preventDefault();
+      const id = document.getElementById('fId').value;
+      const body = {
+        isbn: document.getElementById('fIsbn').value.trim(),
+        title: document.getElementById('fTitle').value.trim(),
+        subtitle: document.getElementById('fSubtitle').value.trim(),
+        author: document.getElementById('fAuthor').value.trim(),
+        translator: document.getElementById('fTranslator').value.trim(),
+        publisher: document.getElementById('fPublisher').value.trim(),
+        categoryId: Number(document.getElementById('fCategory').value),
+        coverKey: document.getElementById('fCoverKey').value.trim(),
+        price: Number(document.getElementById('fPrice').value),
+        originalPrice: Number(document.getElementById('fOriginalPrice').value),
+        stock: Number(document.getElementById('fStock').value),
+        description: document.getElementById('fDescription').value.trim(),
+        publishDate: document.getElementById('fPublishDate').value || null,
+        status: Number(document.getElementById('fStatus').value),
+      };
+      const path = id ? `/api/admin/book/${id}` : '/api/admin/book';
+      const method = id ? 'PUT' : 'POST';
+      const result = await api(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (result.code === 200) {
+        showToast('保存成功');
+        closeModal();
+        reload(currentPage);
+      } else {
+        showToast(result.msg || '保存失败', 'err');
+      }
+      return false;
+    }
+
+    async function uploadCover(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const btn = document.getElementById('btnUploadCover');
+      const originalText = btn.textContent;
+      btn.textContent = '上传中...';
+      btn.disabled = true;
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const result = await api('/api/admin/upload', {
+          method: 'POST',
+          body: form
+        });
+        if (result.code === 200 && result.data) {
+          document.getElementById('fCoverKey').value = result.data;
+          showToast('封面上传成功');
+        } else {
+          showToast(result.msg || '上传失败', 'err');
+        }
+      } catch (e) {
+        showToast('上传失败: ' + e.message, 'err');
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        input.value = '';
+      }
+    }
+
+    document.getElementById('kw').addEventListener('keypress', e => {
+      if (e.key === 'Enter') reload();
+    });
+
+    (async () => {
+      await loadUser();
+      await loadCategories();
+      await reload();
+    })();
+  </script>
+</body>
+</html>

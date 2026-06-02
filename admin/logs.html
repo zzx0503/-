@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>后台管理 - 操作日志</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .summary-cell {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .err-cell {
+      color: #c0392b;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .mono {
+      font-family: ui-monospace, "Menlo", "Consolas", monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x2699;&#xFE0F;</span>
+        <span>后台管理</span>
+      </div>
+      <nav class="sidebar-nav" id="adminSideNav"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">ADMIN</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4DD; 操作日志</h1>
+        <span style="color:var(--text-secondary);font-size:14px">追踪管理员的关键操作</span>
+      </div>
+      <div class="main-body">
+        <div class="admin-toolbar">
+          <select id="resTypeSel">
+            <option value="">全部资源</option>
+            <option value="BOOK">图书</option>
+            <option value="CATEGORY">分类</option>
+            <option value="ORDER">订单</option>
+            <option value="COUPON_TEMPLATE">优惠券模板</option>
+            <option value="SECKILL_ACTIVITY">秒杀活动</option>
+            <option value="USER">用户</option>
+          </select>
+          <select id="actTypeSel">
+            <option value="">全部动作</option>
+            <option value="CREATE">创建</option>
+            <option value="UPDATE">更新</option>
+            <option value="DELETE">删除</option>
+            <option value="ISSUE">发放</option>
+            <option value="END">结束</option>
+            <option value="START">开始</option>
+            <option value="SHIP">发货</option>
+            <option value="TOGGLE_STATUS">上下架</option>
+          </select>
+          <input type="number" id="adminIdInput" placeholder="管理员ID" style="width:120px">
+          <input type="datetime-local" id="fromInput">
+          <input type="datetime-local" id="toInput">
+          <button class="admin-btn" onclick="reload()">查询</button>
+          <div class="grow"></div>
+          <button class="admin-btn" onclick="resetFilters()">重置</button>
+        </div>
+
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th style="width:140px">时间</th>
+              <th>管理员</th>
+              <th>资源</th>
+              <th>动作</th>
+              <th>目标</th>
+              <th>摘要</th>
+              <th>结果</th>
+              <th>耗时</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:30px">加载中...</td></tr>
+          </tbody>
+        </table>
+        <div class="admin-pagi" id="pagi"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./common.js"></script>
+  <script>
+    setActiveNav('logs');
+
+    let currentPage = 1;
+    const PAGE_SIZE = 20;
+
+    function fmtBackendDt(localDt) {
+      if (!localDt) return null;
+      return localDt.length === 16 ? localDt + ':00' : localDt;
+    }
+
+    async function reload(page) {
+      currentPage = page || 1;
+      const params = new URLSearchParams();
+      const rt = document.getElementById('resTypeSel').value;
+      const at = document.getElementById('actTypeSel').value;
+      const aid = document.getElementById('adminIdInput').value;
+      const from = fmtBackendDt(document.getElementById('fromInput').value);
+      const to = fmtBackendDt(document.getElementById('toInput').value);
+      if (rt) params.set('resourceType', rt);
+      if (at) params.set('actionType', at);
+      if (aid) params.set('adminUserId', aid);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      params.set('page', currentPage);
+      params.set('size', PAGE_SIZE);
+      const result = await api('/api/admin/operation-logs?' + params.toString());
+      const tbody = document.getElementById('tbody');
+      if (result.code !== 200 || !result.data) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:30px">${result.msg || '加载失败'}</td></tr>`;
+        document.getElementById('pagi').innerHTML = '';
+        return;
+      }
+      const list = result.data.list || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:30px">暂无日志</td></tr>';
+      } else {
+        tbody.innerHTML = list.map(l => `
+          <tr>
+            <td style="font-size:12px">${fmtDateTime(l.createTime)}</td>
+            <td>
+              ${escapeHtml(l.adminUsername || '--')}
+              ${l.adminUserId ? `<div style="color:var(--text-secondary);font-size:12px">#${l.adminUserId}</div>` : ''}
+            </td>
+            <td>${escapeHtml(l.resourceType || '--')}</td>
+            <td>${escapeHtml(l.actionType || '--')}</td>
+            <td class="mono">${escapeHtml(l.targetId || '--')}</td>
+            <td class="summary-cell" title="${escapeHtml(l.summary || '')}">
+              ${escapeHtml(l.summary || '--')}
+              ${l.errorMsg ? `<div class="err-cell">${escapeHtml(l.errorMsg)}</div>` : ''}
+            </td>
+            <td>${l.success === 1 ? '<span class="tag green">成功</span>' : '<span class="tag red">失败</span>'}</td>
+            <td>${l.durationMs != null ? (l.durationMs + ' ms') : '--'}</td>
+            <td class="mono">${escapeHtml(l.ipAddress || '--')}</td>
+          </tr>
+        `).join('');
+      }
+      renderPagi(result.data.total || 0);
+    }
+
+    function renderPagi(total) {
+      const totalPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const wrap = document.getElementById('pagi');
+      wrap.innerHTML = `
+        <button onclick="reload(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+        <button class="cur">${currentPage} / ${totalPage}（共 ${total} 条）</button>
+        <button onclick="reload(${currentPage + 1})" ${currentPage >= totalPage ? 'disabled' : ''}>下一页</button>
+      `;
+    }
+
+    function resetFilters() {
+      document.getElementById('resTypeSel').value = '';
+      document.getElementById('actTypeSel').value = '';
+      document.getElementById('adminIdInput').value = '';
+      document.getElementById('fromInput').value = '';
+      document.getElementById('toInput').value = '';
+      reload();
+    }
+
+    (async () => {
+      await loadUser();
+      await reload();
+    })();
+  </script>
+</body>
+</html>

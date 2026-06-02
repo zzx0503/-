@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 图书详情</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .detail-layout {
+      display: flex;
+      gap: 32px;
+      margin-bottom: 28px;
+    }
+    .detail-cover-wrap {
+      flex-shrink: 0;
+      width: 280px;
+    }
+    .detail-cover {
+      width: 100%;
+      height: 380px;
+      border-radius: var(--radius);
+      background-size: cover;
+      background-position: center;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    .detail-meta {
+      flex: 1;
+    }
+    .detail-meta h1 {
+      font-size: 24px;
+      margin-bottom: 6px;
+    }
+    .detail-meta .subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+    }
+    .detail-meta .meta-row {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .detail-meta .meta-row span {
+      color: var(--text);
+      margin-left: 4px;
+    }
+    .detail-meta .rating-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .detail-meta .stars {
+      color: #f1c40f;
+      font-size: 18px;
+      letter-spacing: 2px;
+    }
+    .detail-meta .price-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin: 18px 0;
+      padding: 16px 0;
+      border-top: 1px dashed var(--border);
+      border-bottom: 1px dashed var(--border);
+    }
+    .detail-meta .price {
+      font-size: 32px;
+      color: #e74c3c;
+      font-weight: 700;
+    }
+    .detail-meta .original-price {
+      font-size: 16px;
+      color: var(--text-secondary);
+      text-decoration: line-through;
+    }
+    .detail-meta .stock-hint {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .detail-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .detail-actions button {
+      padding: 12px 32px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .detail-actions .btn-cart {
+      background: var(--primary);
+      color: var(--white);
+    }
+    .detail-actions .btn-cart:hover {
+      opacity: .9;
+    }
+    .detail-actions .btn-buy {
+      background: #e74c3c;
+      color: var(--white);
+    }
+    .detail-actions .btn-buy:hover {
+      opacity: .9;
+    }
+    .detail-actions .btn-fav {
+      background: var(--white);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .detail-actions .btn-fav.active {
+      background: #fff0f0;
+      border-color: #e74c3c;
+      color: #e74c3c;
+    }
+
+    .detail-section {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+    .detail-section h3 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .detail-section p.desc {
+      line-height: 1.8;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    .review-item {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .review-item:last-child {
+      border-bottom: none;
+    }
+    .review-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .review-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f7c89c, #d68a4f);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .review-info {
+      flex: 1;
+    }
+    .review-nickname {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .review-time {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .review-stars {
+      color: #f1c40f;
+      font-size: 14px;
+    }
+    .review-content {
+      font-size: 14px;
+      line-height: 1.6;
+      margin-top: 6px;
+    }
+    .review-images {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .review-images img {
+      width: 80px;
+      height: 80px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+    }
+
+    .similar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 16px;
+    }
+    .similar-card {
+      cursor: pointer;
+    }
+    .similar-cover {
+      width: 100%;
+      height: 180px;
+      border-radius: 8px;
+      background-size: cover;
+      background-position: center;
+      margin-bottom: 8px;
+    }
+    .similar-title {
+      font-size: 13px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .similar-price {
+      font-size: 13px;
+      color: #e74c3c;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html">
+          <span>&#x1F464;</span>
+          <span>用户中心</span>
+        </a>
+        <a class="nav-item" href="home.html">
+          <span>&#x1F3E0;</span>
+          <span>首页</span>
+        </a>
+        <a class="nav-item" href="favorite.html">
+          <span>&#x1F4D6;</span>
+          <span>我的书架</span>
+        </a>
+        <a class="nav-item" href="cart.html">
+          <span>&#x1F6D2;</span>
+          <span>购物车</span>
+        </a>
+        <a class="nav-item" href="order.html">
+          <span>&#x1F4E6;</span>
+          <span>我的订单</span>
+        </a>
+        <a class="nav-item" href="promotions.html">
+          <span>&#x1F381;</span>
+          <span>优惠</span>
+        </a>
+        <a class="nav-item" href="ai-chat.html">
+          <span>&#x1F916;</span>
+          <span>万事通</span>
+        </a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span>
+          <span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F4D6; 图书详情</h1>
+        <span style="color:var(--text-secondary);font-size:14px">探索每一本书的故事</span>
+      </div>
+      <div class="main-body" id="detailBody">
+        <p style="color:var(--text-secondary)">加载中...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      window.location.href = 'index.html';
+    }
+
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const bookId = urlParams.get('id');
+    if (!bookId) {
+      window.location.href = 'home.html';
+    }
+
+    let currentBook = null;
+    let quantity = 1;
+
+    function renderStars(rating) {
+      const val = Number(rating || 0);
+      const full = Math.floor(val);
+      const half = val - full >= 0.5;
+      let s = '';
+      for (let i = 0; i < full; i++) s += '★';
+      if (half) s += '☆';
+      while (s.length < 5) s += '☆';
+      return s;
+    }
+
+    function coverUrl(b) {
+      const id = b && typeof b === 'object' ? b.id : b;
+      const key = b && typeof b === 'object' ? b.coverKey : null;
+      return key || `https://picsum.photos/seed/${id}/300/400`;
+    }
+
+    async function loadUser() {
+      try {
+        const result = await api('/api/user/me');
+        if (result.code === 200) {
+          const name = result.data.nickname || result.data.username;
+          document.getElementById('sideName').textContent = name;
+          document.getElementById('sideRole').textContent = result.data.role || 'USER';
+          if (result.data.role === 'ADMIN') {
+            document.getElementById('adminNav').style.display = 'flex';
+          }
+        } else {
+          logout();
+        }
+      } catch (err) {
+        document.getElementById('sideName').textContent = '未知';
+      }
+    }
+
+    async function loadBook() {
+      const result = await api(`/api/book/${bookId}`);
+      if (result.code !== 200 || !result.data) {
+        document.getElementById('detailBody').innerHTML = '<p style="color:var(--text-secondary)">图书不存在或已下架</p>';
+        return;
+      }
+      const b = result.data;
+      currentBook = b;
+      renderDetail(b);
+      loadSimilar(b.id);
+      loadReviews(b.id);
+    }
+
+    function renderDetail(b) {
+      const isFav = b.isFavorited ? 'active' : '';
+      const favText = b.isFavorited ? '已收藏' : '收藏';
+      const html = `
+        <div class="detail-layout">
+          <div class="detail-cover-wrap">
+            <div class="detail-cover" style="background-image:url('${coverUrl(b)}')"></div>
+          </div>
+          <div class="detail-meta">
+            <h1>${b.title}</h1>
+            ${b.subtitle ? `<div class="subtitle">${b.subtitle}</div>` : ''}
+            <div class="meta-row">作者：<span>${b.author || '--'}</span></div>
+            ${b.translator ? `<div class="meta-row">译者：<span>${b.translator}</span></div>` : ''}
+            <div class="meta-row">出版社：<span>${b.publisher || '--'}</span></div>
+            ${b.publishDate ? `<div class="meta-row">出版日期：<span>${b.publishDate}</span></div>` : ''}
+            <div class="meta-row">分类：<span>${b.categoryName || '--'}</span></div>
+            <div class="rating-row">
+              <span class="stars">${renderStars(b.rating)}</span>
+              <span>${b.rating || '0.0'}</span>
+              <span style="color:var(--text-secondary)">销量 ${b.salesCount || 0}</span>
+            </div>
+            <div class="price-row">
+              <span class="price">&yen;${Number(b.price || 0).toFixed(2)}</span>
+              ${b.originalPrice ? `<span class="original-price">&yen;${Number(b.originalPrice).toFixed(2)}</span>` : ''}
+            </div>
+            <div class="stock-hint">库存：${b.stock || 0} 件</div>
+            <div class="detail-actions">
+              <button class="btn-cart" onclick="addToCart()">加入购物车</button>
+              <button class="btn-buy" onclick="buyNow()">立即购买</button>
+              <button class="btn-fav ${isFav}" id="favBtn" onclick="toggleFavorite()">${favText}</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>&#x1F4D6; 图书简介</h3>
+          <p class="desc">${b.description || '暂无简介'}</p>
+        </div>
+
+        <div class="detail-section">
+          <h3>&#x1F4D1; 相似推荐</h3>
+          <div class="similar-grid" id="similarGrid"><p style="color:var(--text-secondary)">加载中...</p></div>
+        </div>
+
+        <div class="detail-section">
+          <h3>&#x1F4AC; 用户评价</h3>
+          <div id="reviewList"><p style="color:var(--text-secondary)">加载中...</p></div>
+        </div>
+      `;
+      document.getElementById('detailBody').innerHTML = html;
+    }
+
+    async function loadSimilar(id) {
+      const result = await api(`/api/book/${id}/similar?limit=6`);
+      const container = document.getElementById('similarGrid');
+      if (result.code !== 200 || !result.data || !result.data.length) {
+        container.innerHTML = '<p style="color:var(--text-secondary)">暂无相似推荐</p>';
+        return;
+      }
+      container.innerHTML = result.data.map(b => `
+        <div class="similar-card" onclick="window.location.href='detail.html?id=${b.id}'">
+          <div class="similar-cover" style="background-image:url('${coverUrl(b)}')"></div>
+          <div class="similar-title">${b.title}</div>
+          <div class="similar-price">&yen;${Number(b.price || 0).toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
+
+    async function loadReviews(id) {
+      const result = await api(`/api/review/book/${id}?page=1&size=10`);
+      const container = document.getElementById('reviewList');
+      if (result.code !== 200 || !result.data || !result.data.list || !result.data.list.length) {
+        container.innerHTML = '<p style="color:var(--text-secondary)">暂无评价，购买后快来发表第一条评价吧~</p>';
+        return;
+      }
+      container.innerHTML = result.data.list.map(r => {
+        const imgs = r.images && r.images.length
+          ? `<div class="review-images">${r.images.map(img => `<img src="${img}" alt="">`).join('')}</div>`
+          : '';
+        return `
+          <div class="review-item">
+            <div class="review-header">
+              <div class="review-avatar">${(r.userNickname || 'U').charAt(0)}</div>
+              <div class="review-info">
+                <div class="review-nickname">${r.userNickname || '匿名用户'}</div>
+                <div class="review-time">${r.createTime || ''}</div>
+              </div>
+              <div class="review-stars">${renderStars(r.rating)}</div>
+            </div>
+            <div class="review-content">${r.content || ''}</div>
+            ${imgs}
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function addToCart() {
+      if (!currentBook) return;
+      const result = await api('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookId: currentBook.id, quantity: 1 })
+      });
+      if (result.code === 200) {
+        if (confirm('已加入购物车，是否去购物车查看？')) {
+          window.location.href = 'cart.html';
+        }
+      } else {
+        alert(result.msg || '加入购物车失败');
+      }
+    }
+
+    function buyNow() {
+      if (!currentBook) return;
+      addToCart().then(() => {
+        // 加入购物车后跳转购物车结算（购物车页面尚未实现时先提示）
+        window.location.href = 'cart.html';
+      });
+    }
+
+    async function toggleFavorite() {
+      if (!currentBook) { alert('图书信息未加载'); return; }
+      const btn = document.getElementById('favBtn');
+      const isFav = btn.classList.contains('active');
+      const originalText = btn.textContent;
+      btn.textContent = '处理中...';
+      btn.disabled = true;
+      try {
+        const method = isFav ? 'DELETE' : 'POST';
+        const result = await api(`/api/favorite/${currentBook.id}`, { method });
+        console.log('favorite result:', result);
+        if (result.code === 200) {
+          if (isFav) {
+            btn.classList.remove('active');
+            btn.textContent = '收藏';
+          } else {
+            btn.classList.add('active');
+            btn.textContent = '已收藏';
+          }
+        } else {
+          alert(result.msg || '操作失败');
+          btn.textContent = originalText;
+        }
+      } catch (e) {
+        console.error('toggleFavorite error:', e);
+        alert('网络错误，请检查控制台');
+        btn.textContent = originalText;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    loadUser();
+    loadBook();
+  </script>
+</body>
+</html>

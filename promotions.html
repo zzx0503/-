@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能书店 - 优惠</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    .promo-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .promo-tab {
+      padding: 10px 22px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--white);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .promo-tab.active.coupon {
+      background: linear-gradient(135deg,#ff7e5f,#feb47b);
+      color: #fff;
+      border-color: transparent;
+    }
+    .promo-tab.active.seckill {
+      background: linear-gradient(135deg,#ff5f6d,#ffc371);
+      color: #fff;
+      border-color: transparent;
+    }
+    .sub-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .sub-tab {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--white);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .sub-tab.active {
+      background: var(--primary);
+      color: var(--white);
+      border-color: var(--primary);
+    }
+
+    /* ---------- 优惠券卡片 ---------- */
+    .cp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .cp-card {
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%);
+      color: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 110px;
+      box-shadow: 0 2px 6px rgba(255,126,95,0.3);
+    }
+    .cp-card.locked,
+    .cp-card.used,
+    .cp-card.expired {
+      background: linear-gradient(135deg, #adb5bd 0%, #ced4da 100%);
+      box-shadow: none;
+    }
+    .cp-card .left {
+      flex: 0 0 110px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-right: 2px dashed rgba(255,255,255,0.5);
+      padding: 10px 6px;
+      text-align: center;
+    }
+    .cp-card .left .v { font-size: 30px; font-weight: 800; line-height: 1; }
+    .cp-card .left .v small { font-size: 14px; font-weight: 500; }
+    .cp-card .left .th { font-size: 12px; margin-top: 6px; opacity: 0.95; }
+    .cp-card .right {
+      flex: 1;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+    }
+    .cp-card .right .name {
+      font-size: 15px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cp-card .right .desc {
+      font-size: 12px;
+      opacity: 0.92;
+      margin-top: 4px;
+      line-height: 1.4;
+      max-height: 32px;
+      overflow: hidden;
+    }
+    .cp-card .right .meta {
+      font-size: 11px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+    .cp-card .right .actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .cp-card .btn-claim {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 999px;
+      background: #fff;
+      color: #e65100;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .cp-card .btn-claim:disabled {
+      background: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.8);
+      cursor: not-allowed;
+    }
+    .cp-card .stat-tag {
+      font-size: 12px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* ---------- 秒杀卡片 ---------- */
+    .sk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .sk-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .sk-card .cover {
+      width: 100%;
+      height: 180px;
+      background-size: cover;
+      background-position: center;
+      cursor: pointer;
+    }
+    .sk-card .body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sk-card .title {
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-main);
+    }
+    .sk-card .author { font-size: 12px; color: var(--text-secondary); }
+    .sk-card .price-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .sk-card .price-row .now {
+      font-size: 22px;
+      color: #e74c3c;
+      font-weight: 800;
+    }
+    .sk-card .price-row .ori {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-decoration: line-through;
+    }
+    .sk-card .progress {
+      height: 8px;
+      background: #ffe1e6;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .sk-card .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg,#ff5f6d,#ffc371);
+      transition: width .3s;
+    }
+    .sk-card .progress-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .sk-card .countdown {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .sk-card .countdown .cd-val {
+      background: #2c2c2e;
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .sk-card .actions { display: flex; gap: 8px; margin-top: 6px; }
+    .sk-card .btn-buy {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      background: linear-gradient(135deg,#ff5f6d,#ffc371);
+      color: var(--white);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sk-card .btn-buy:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .promo-empty {
+      text-align: center;
+      padding: 60px 0;
+      color: var(--text-secondary);
+      grid-column: 1 / -1;
+      background: var(--white);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      width: 460px;
+      max-width: 92vw;
+      max-height: 80vh;
+      padding: 24px;
+      overflow: auto;
+      box-shadow: var(--shadow);
+    }
+    .modal-box h3 { margin-bottom: 14px; }
+    .addr-option {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .addr-option.selected,
+    .addr-option:hover {
+      border-color: var(--primary);
+      background: #fffaf3;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .modal-actions button {
+      padding: 8px 20px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .modal-actions .btn-confirm {
+      background: linear-gradient(135deg,#ff5f6d,#ffc371);
+      color: var(--white);
+      border: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span>&#x1F4DA;</span>
+        <span>智能书店</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item" href="user.html"><span>&#x1F464;</span><span>用户中心</span></a>
+        <a class="nav-item" href="home.html"><span>&#x1F3E0;</span><span>首页</span></a>
+        <a class="nav-item" href="favorite.html"><span>&#x1F4D6;</span><span>我的书架</span></a>
+        <a class="nav-item" href="cart.html"><span>&#x1F6D2;</span><span>购物车</span></a>
+        <a class="nav-item" href="order.html"><span>&#x1F4E6;</span><span>我的订单</span></a>
+        <a class="nav-item active" href="promotions.html"><span>&#x1F381;</span><span>优惠</span></a>
+        <a class="nav-item" href="ai-chat.html"><span>&#x1F916;</span><span>万事通</span></a>
+        <a class="nav-item admin-only" id="adminNav" href="admin/index.html" style="display:none">
+          <span>&#x2699;&#xFE0F;</span><span>后台管理</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">&#x1F464;</div>
+          <div class="info">
+            <div class="name" id="sideName">加载中</div>
+            <div class="role" id="sideRole">USER</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1>&#x1F381; 优惠</h1>
+        <span style="color:var(--text-secondary);font-size:14px">领券中心、限时秒杀，一站搞定</span>
+      </div>
+      <div class="main-body">
+        <div class="promo-tabs">
+          <div class="promo-tab active coupon" data-mode="coupon" onclick="switchMode('coupon')">&#x1F3AB; 优惠券</div>
+          <div class="promo-tab" data-mode="seckill" onclick="switchMode('seckill')">&#x26A1; 限时秒杀</div>
+        </div>
+
+        <!-- 优惠券子菜单 -->
+        <div class="sub-tabs" id="couponSubTabs">
+          <div class="sub-tab active" data-sub="available" onclick="switchCouponSub('available')">领券中心</div>
+          <div class="sub-tab" data-sub="mine" onclick="switchCouponSub('mine')">我的优惠券</div>
+        </div>
+        <div class="sub-tabs" id="couponStatusTabs" style="display:none">
+          <div class="sub-tab active" data-status="" onclick="switchCouponStatus('')">全部</div>
+          <div class="sub-tab" data-status="UNUSED" onclick="switchCouponStatus('UNUSED')">未使用</div>
+          <div class="sub-tab" data-status="LOCKED" onclick="switchCouponStatus('LOCKED')">使用中</div>
+          <div class="sub-tab" data-status="USED" onclick="switchCouponStatus('USED')">已使用</div>
+          <div class="sub-tab" data-status="EXPIRED" onclick="switchCouponStatus('EXPIRED')">已过期</div>
+        </div>
+
+        <!-- 秒杀子菜单 -->
+        <div class="sub-tabs" id="seckillSubTabs" style="display:none">
+          <div class="sub-tab active" data-sk="running" onclick="switchSeckillSub('running')">进行中</div>
+          <div class="sub-tab" data-sk="upcoming" onclick="switchSeckillSub('upcoming')">即将开始</div>
+        </div>
+
+        <div id="content"><div class="promo-empty">加载中...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="addrModal">
+    <div class="modal-box">
+      <h3>选择收货地址</h3>
+      <div id="addrOptions"><p style="color:var(--text-secondary)">加载中...</p></div>
+      <div class="modal-actions">
+        <button onclick="closeAddr()">取消</button>
+        <button class="btn-confirm" onclick="confirmBuy()">确认抢购</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('accessToken');
+    if (!token) location.href = 'index.html';
+    async function api(path, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    let mode = 'coupon';        // coupon | seckill
+    let couponSub = 'available'; // available | mine
+    let couponStatus = '';
+    let seckillSub = 'running';  // running | upcoming
+    let cdTimer = null;
+    let activities = [];
+    let pendingActivityId = null;
+    let addresses = [];
+    let selectedAddrId = null;
+
+    function switchMode(m) {
+      mode = m;
+      document.querySelectorAll('.promo-tabs .promo-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.mode === m);
+        t.classList.toggle('coupon', t.dataset.mode === 'coupon');
+        t.classList.toggle('seckill', t.dataset.mode === 'seckill');
+      });
+      document.getElementById('couponSubTabs').style.display = m === 'coupon' ? '' : 'none';
+      document.getElementById('couponStatusTabs').style.display =
+        m === 'coupon' && couponSub === 'mine' ? '' : 'none';
+      document.getElementById('seckillSubTabs').style.display = m === 'seckill' ? '' : 'none';
+      load();
+    }
+
+    function switchCouponSub(s) {
+      couponSub = s;
+      document.querySelectorAll('#couponSubTabs .sub-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.sub === s);
+      });
+      document.getElementById('couponStatusTabs').style.display = s === 'mine' ? '' : 'none';
+      load();
+    }
+
+    function switchCouponStatus(s) {
+      couponStatus = s;
+      document.querySelectorAll('#couponStatusTabs .sub-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.status === s);
+      });
+      load();
+    }
+
+    function switchSeckillSub(s) {
+      seckillSub = s;
+      document.querySelectorAll('#seckillSubTabs .sub-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.sk === s);
+      });
+      load();
+    }
+
+    async function load() {
+      stopCountdown();
+      const c = document.getElementById('content');
+      c.innerHTML = '<div class="promo-empty">加载中...</div>';
+      if (mode === 'coupon') {
+        await loadCoupons();
+      } else {
+        await loadSeckill();
+      }
+    }
+
+    // ---------- 优惠券 ----------
+    async function loadCoupons() {
+      const c = document.getElementById('content');
+      if (couponSub === 'available') {
+        const result = await api('/api/coupons/available');
+        if (result.code !== 200 || !result.data || !result.data.length) {
+          c.innerHTML = `<div class="promo-empty">${result.msg || '暂无可领取的优惠券'}</div>`;
+          return;
+        }
+        c.innerHTML = `<div class="cp-grid">${result.data.map(renderAvailable).join('')}</div>`;
+      } else {
+        const url = couponStatus ? `/api/coupons/mine?status=${couponStatus}` : '/api/coupons/mine';
+        const result = await api(url);
+        if (result.code !== 200 || !result.data || !result.data.length) {
+          c.innerHTML = `<div class="promo-empty">${result.msg || '暂无优惠券'}</div>`;
+          return;
+        }
+        c.innerHTML = `<div class="cp-grid">${result.data.map(renderMine).join('')}</div>`;
+      }
+    }
+
+    function renderAvailable(c) {
+      const valueText = c.type === 'DISCOUNT'
+        ? `<span class="v">${(Number(c.discountValue) * 10).toFixed(1)}<small>折</small></span>`
+        : `<span class="v">¥${Number(c.discountValue).toFixed(0)}<small></small></span>`;
+      const thresholdText = c.threshold && Number(c.threshold) > 0
+        ? `满 ¥${Number(c.threshold).toFixed(0)}`
+        : '无门槛';
+      const remaining = c.remainingCount == null ? '不限' : c.remainingCount;
+      const validity = c.validTo
+        ? `有效期至 ${(c.validTo || '').replace('T', ' ').slice(0, 16)}`
+        : '长期有效';
+      const claimed = c.claimed === true;
+      const soldOut = (c.remainingCount != null && c.remainingCount <= 0);
+      let btn;
+      if (claimed) {
+        btn = `<button class="btn-claim" disabled>已领取</button>`;
+      } else if (soldOut) {
+        btn = `<button class="btn-claim" disabled>已抢光</button>`;
+      } else {
+        btn = `<button class="btn-claim" onclick="claim(${c.templateId}, this)">立即领取</button>`;
+      }
+      return `
+        <div class="cp-card">
+          <div class="left">
+            ${valueText}
+            <div class="th">${thresholdText}</div>
+          </div>
+          <div class="right">
+            <div>
+              <div class="name">${escapeHtml(c.name || '优惠券')}</div>
+              <div class="desc">${escapeHtml(c.description || '')}</div>
+              <div class="meta">${validity} · 剩余 ${remaining}</div>
+            </div>
+            <div class="actions">${btn}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMine(c) {
+      const cls = c.status === 'UNUSED' ? '' :
+                  c.status === 'LOCKED' ? 'locked' :
+                  c.status === 'USED' ? 'used' : 'expired';
+      const statusLabel = ({UNUSED:'未使用', LOCKED:'使用中', USED:'已使用', EXPIRED:'已过期'}[c.status]) || c.status;
+      const valueText = c.type === 'DISCOUNT'
+        ? `<span class="v">${(Number(c.discountValue) * 10).toFixed(1)}<small>折</small></span>`
+        : `<span class="v">¥${Number(c.discountValue).toFixed(0)}<small></small></span>`;
+      const thresholdText = c.threshold && Number(c.threshold) > 0
+        ? `满 ¥${Number(c.threshold).toFixed(0)}`
+        : '无门槛';
+      const expireTxt = c.expireTime ? `有效期至 ${(c.expireTime || '').replace('T', ' ').slice(0, 16)}` : '';
+      return `
+        <div class="cp-card ${cls}">
+          <div class="left">
+            ${valueText}
+            <div class="th">${thresholdText}</div>
+          </div>
+          <div class="right">
+            <div>
+              <div class="name">${escapeHtml(c.name || '优惠券')}</div>
+              <div class="desc">${escapeHtml(c.description || '')}</div>
+              <div class="meta">券码 ${escapeHtml(c.code || '')}${expireTxt ? ' · ' + expireTxt : ''}</div>
+            </div>
+            <div class="actions">
+              <span class="stat-tag">${statusLabel}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function claim(templateId, btn) {
+      btn.disabled = true;
+      const result = await api('/api/coupons/' + templateId + '/claim', { method: 'POST' });
+      if (result.code === 200) {
+        alert('领取成功');
+        btn.textContent = '已领取';
+      } else {
+        alert(result.msg || '领取失败');
+        btn.disabled = false;
+      }
+      load();
+    }
+
+    // ---------- 秒杀 ----------
+    async function loadSeckill() {
+      const c = document.getElementById('content');
+      const url = seckillSub === 'running' ? '/api/seckill/running' : '/api/seckill/upcoming';
+      const result = await api(url);
+      if (result.code !== 200 || !result.data || !result.data.length) {
+        c.innerHTML = `<div class="promo-empty">${result.msg || (seckillSub === 'running' ? '暂无进行中的秒杀' : '暂无即将开始的秒杀')}</div>`;
+        return;
+      }
+      activities = result.data;
+      c.innerHTML = `<div class="sk-grid">${activities.map(renderActivity).join('')}</div>`;
+      startCountdown();
+    }
+
+    function renderActivity(a) {
+      const stockTotal = a.totalStock || 0;
+      const sold = a.soldCount || 0;
+      const percent = stockTotal === 0 ? 0 : Math.min(100, Math.round((sold / stockTotal) * 100));
+      const remaining = a.remainingStock != null ? a.remainingStock : Math.max(0, stockTotal - sold);
+      const isRunning = seckillSub === 'running';
+      const ended = isRunning && remaining <= 0;
+      const userExceeded = a.userStatus === 'EXCEEDED';
+      const buyDisabled = !isRunning || ended || userExceeded;
+      const btnTxt = !isRunning ? '即将开始' : (ended ? '已抢光' : (userExceeded ? '已达上限' : '立即抢购'));
+      const seedId = a.bookId || a.id;
+      const cover = a.bookCover || `https://picsum.photos/seed/${seedId}/300/400`;
+      const targetTime = isRunning ? a.endTime : a.startTime;
+      const cdLabel = isRunning ? '距结束' : '距开始';
+      return `
+        <div class="sk-card" data-id="${a.id}">
+          <div class="cover" style="background-image:url('${cover}')" onclick="location.href='detail.html?id=${a.bookId}'"></div>
+          <div class="body">
+            <div class="title" onclick="location.href='detail.html?id=${a.bookId}'">${escapeHtml(a.bookTitle || '')}</div>
+            <div class="author">${escapeHtml(a.bookAuthor || '')}</div>
+            <div class="price-row">
+              <span class="now">¥${Number(a.seckillPrice || 0).toFixed(2)}</span>
+              <span class="ori">¥${Number(a.originalPrice || 0).toFixed(2)}</span>
+            </div>
+            <div class="progress"><div class="progress-bar" style="width:${percent}%"></div></div>
+            <div class="progress-text">已售 ${sold} / ${stockTotal} · 剩余 ${remaining}</div>
+            <div class="countdown">
+              <span>${cdLabel}</span>
+              <span class="cd-val cd-h" data-target="${targetTime || ''}">--</span>
+              <span>:</span>
+              <span class="cd-val cd-m">--</span>
+              <span>:</span>
+              <span class="cd-val cd-s">--</span>
+            </div>
+            <div class="actions">
+              <button class="btn-buy" ${buyDisabled ? 'disabled' : ''} onclick="openBuy(${a.id})">${btnTxt}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function startCountdown() {
+      stopCountdown();
+      cdTimer = setInterval(updateCountdowns, 1000);
+      updateCountdowns();
+    }
+    function stopCountdown() { if (cdTimer) { clearInterval(cdTimer); cdTimer = null; } }
+
+    function updateCountdowns() {
+      const now = Date.now();
+      let needsReload = false;
+      document.querySelectorAll('.sk-card .cd-h').forEach(el => {
+        const target = el.dataset.target;
+        if (!target) return;
+        const t = new Date(target.replace(' ', 'T')).getTime();
+        let diff = Math.floor((t - now) / 1000);
+        if (diff <= 0) { diff = 0; needsReload = true; }
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        el.textContent = String(h).padStart(2, '0');
+        const card = el.closest('.sk-card');
+        card.querySelector('.cd-m').textContent = String(m).padStart(2, '0');
+        card.querySelector('.cd-s').textContent = String(s).padStart(2, '0');
+      });
+      if (needsReload) {
+        stopCountdown();
+        setTimeout(load, 800);
+      }
+    }
+
+    async function openBuy(activityId) {
+      pendingActivityId = activityId;
+      document.getElementById('addrModal').classList.add('active');
+      const result = await api('/api/address');
+      const box = document.getElementById('addrOptions');
+      if (result.code !== 200 || !result.data || !result.data.length) {
+        box.innerHTML = '<p style="color:var(--text-secondary)">暂无收货地址，请先去用户中心添加。</p>';
+        selectedAddrId = null;
+        return;
+      }
+      addresses = result.data;
+      selectedAddrId = (addresses.find(a => a.isDefault) || addresses[0]).id;
+      renderAddresses();
+    }
+
+    function renderAddresses() {
+      const box = document.getElementById('addrOptions');
+      box.innerHTML = addresses.map(a => `
+        <div class="addr-option ${a.id === selectedAddrId ? 'selected' : ''}" onclick="selectAddr(${a.id})">
+          <div><strong>${escapeHtml(a.receiver || '')}</strong> ${escapeHtml(a.phone || '')}</div>
+          <div style="color:var(--text-secondary);font-size:13px;margin-top:2px">
+            ${escapeHtml((a.province||'') + ' ' + (a.city||'') + ' ' + (a.district||'') + ' ' + (a.detailAddress||''))}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectAddr(id) { selectedAddrId = id; renderAddresses(); }
+    function closeAddr() {
+      document.getElementById('addrModal').classList.remove('active');
+      pendingActivityId = null;
+    }
+
+    async function confirmBuy() {
+      if (!pendingActivityId) return;
+      if (!selectedAddrId) { alert('请选择收货地址'); return; }
+      const result = await api('/api/seckill/buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activityId: pendingActivityId, addressId: selectedAddrId })
+      });
+      if (result.code !== 200) {
+        alert(result.msg || '抢购失败');
+        return;
+      }
+      const requestId = result.data.requestId;
+      closeAddr();
+
+      let status = 'PROCESSING';
+      let attempts = 0;
+      const maxAttempts = 30;
+      while (status === 'PROCESSING' && attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1000));
+        const statusRes = await api('/api/seckill/queue/' + requestId + '/status');
+        if (statusRes.code === 200) {
+          status = statusRes.data.status;
+          if (status === 'SUCCESS') {
+            const orderNo = statusRes.data.orderNo;
+            const expireSec = statusRes.data.expireSeconds || 300;
+            const min = Math.ceil(expireSec / 60);
+            if (confirm(`抢购成功！订单号：${orderNo}\n请在 ${min} 分钟内完成支付，是否立即支付？`)) {
+              const payRes = await api('/api/seckill/orders/' + orderNo + '/pay', { method: 'POST' });
+              if (payRes.code === 200) {
+                alert('支付成功，订单已创建，可在「我的订单」查看');
+              } else {
+                alert(payRes.msg || '支付失败，可在订单页继续支付');
+              }
+            } else {
+              alert('订单已生成，可在「我的订单」中查看并支付');
+            }
+            location.href = 'order.html';
+            return;
+          } else if (status === 'FAILED') {
+            alert('抢购失败：' + (statusRes.data.msg || '库存不足或系统繁忙'));
+            return;
+          }
+        }
+        attempts++;
+      }
+      if (status === 'PROCESSING') {
+        alert('订单处理中，请稍后到「我的订单」查看结果');
+        location.href = 'order.html';
+      }
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function loadUser() {
+      try {
+        const result = await api('/api/user/me');
+        if (result.code === 200) {
+          const name = result.data.nickname || result.data.username;
+          document.getElementById('sideName').textContent = name;
+          document.getElementById('sideRole').textContent = result.data.role || 'USER';
+          if (result.data.role === 'ADMIN') document.getElementById('adminNav').style.display = 'flex';
+        } else logout();
+      } catch (e) { document.getElementById('sideName').textContent = '未知'; }
+    }
+    function logout() { localStorage.clear(); location.href = 'index.html'; }
+
+    // 启动时支持通过 hash 切换 (#seckill / #coupon)
+    const initialHash = (location.hash || '').replace('#', '');
+    if (initialHash === 'seckill') switchMode('seckill');
+
+    loadUser();
+    load();
+  </script>
+</body>
+</html>

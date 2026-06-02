@@ -13,6 +13,11 @@ spring:
     url: jdbc:mysql://192.168.100.128:3306/bookstore_trade?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
     password: YOUR_PASSWORD
+  rabbitmq:
+    host: 192.168.100.128
+    port: 5672
+    username: guest
+    password: YOUR_PASSWORD
   data:
     redis:
       host: 192.168.100.128

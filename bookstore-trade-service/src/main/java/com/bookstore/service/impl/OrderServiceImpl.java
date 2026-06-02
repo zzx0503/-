@@ -25,6 +25,7 @@ import com.bookstore.response.PageResult;
 import com.bookstore.response.Result;
 import com.bookstore.response.ResultCode;
 import com.bookstore.service.CouponCalculatorService;
+import com.bookstore.config.mq.RabbitMQConfig;
 import com.bookstore.service.OrderService;
 import com.bookstore.service.UserCouponService;
 import com.bookstore.utils.OssUrlBuilder;
@@ -33,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.redisson.api.RAtomicLong;
 import org.redisson.api.RedissonClient;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -59,6 +61,7 @@ public class OrderServiceImpl implements OrderService {
     private final OssUrlBuilder ossUrlBuilder;
     private final BookClient bookServiceClient;
     private final UserClient userServiceClient;
+    private final RabbitTemplate rabbitTemplate;
 
     private static final String ORDER_STATUS_PENDING = "PENDING_PAY";
     private static final String ORDER_STATUS_PAID = "PAID";
@@ -144,6 +147,8 @@ public class OrderServiceImpl implements OrderService {
         order.setAddressSnapshot(addressSnapshot);
         order.setRemark(dto.getRemark());
         orderMainMapper.insert(order);
+
+        sendOrderTimeoutMessage(order.getId());
 
         for (CartItem item : cartItems) {
             BookDetailDTO book = unwrap(bookServiceClient.getBook(item.getBookId()));
@@ -313,6 +318,12 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
         return order;
+    }
+
+    @SneakyThrows
+    private void sendOrderTimeoutMessage(Long orderId) {
+        Map<String, Long> msg = Map.of("orderId", orderId);
+        rabbitTemplate.convertAndSend(RabbitMQConfig.ORDER_DELAY_EXCHANGE, RabbitMQConfig.ORDER_DELAY_ROUTING_KEY, objectMapper.writeValueAsString(msg));
     }
 
     @SneakyThrows

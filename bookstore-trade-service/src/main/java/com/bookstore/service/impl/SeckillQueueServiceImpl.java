@@ -13,6 +13,7 @@ import com.bookstore.response.Result;
 import com.bookstore.response.ResultCode;
 import com.bookstore.service.SeckillQueueService;
 import com.bookstore.service.SeckillService;
+import com.bookstore.config.mq.RabbitMQConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RScript;
 import org.redisson.client.codec.LongCodec;
 import org.redisson.api.RedissonClient;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -34,10 +36,8 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class SeckillQueueServiceImpl implements SeckillQueueService {
 
-    private static final String QUEUE_KEY = "seckill:queue:orders";
     private static final String STATUS_KEY_PREFIX = "seckill:queue:status:";
     private static final long STATUS_TTL_MINUTES = 10;
-    private static final int MAX_QUEUE_SIZE = 10000;
 
     private static final String SECKILL_LUA =
         "local stockKey = KEYS[1]\n" +
@@ -70,6 +70,7 @@ public class SeckillQueueServiceImpl implements SeckillQueueService {
     private final SeckillService seckillService;
     private final SeckillActivityMapper seckillActivityMapper;
     private final UserClient userServiceClient;
+    private final RabbitTemplate rabbitTemplate;
 
     @Override
     public String enqueue(Long userId, SeckillBuyDTO dto) {
@@ -92,11 +93,6 @@ public class SeckillQueueServiceImpl implements SeckillQueueService {
         AddressDTO address = addressResult.getData();
         if (address == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "收货地址不存在");
-        }
-
-        Long queueSize = stringRedisTemplate.opsForList().size(QUEUE_KEY);
-        if (queueSize != null && queueSize >= MAX_QUEUE_SIZE) {
-            throw new BusinessException(ResultCode.SECKILL_QUEUE_FULL);
         }
 
         String stockKey = SeckillActivityServiceImpl.STOCK_KEY_PREFIX + activity.getId();
@@ -133,7 +129,7 @@ public class SeckillQueueServiceImpl implements SeckillQueueService {
             .timestamp(now)
             .build();
 
-        stringRedisTemplate.opsForList().leftPush(QUEUE_KEY, toJson(req));
+        rabbitTemplate.convertAndSend(RabbitMQConfig.SECKILL_EXCHANGE, RabbitMQConfig.SECKILL_ROUTING_KEY, toJson(req));
 
         SeckillQueueStatusVO status = new SeckillQueueStatusVO();
         status.setRequestId(requestId);
@@ -161,12 +157,16 @@ public class SeckillQueueServiceImpl implements SeckillQueueService {
     }
 
     @Override
-    public void consume() {
-        String json;
-        while ((json = stringRedisTemplate.opsForList().rightPop(QUEUE_KEY)) != null) {
-            SeckillQueueRequestDTO req = fromJson(json, SeckillQueueRequestDTO.class);
-            if (req == null) continue;
+    public void consume(String message) {
+        try {
+            SeckillQueueRequestDTO req = fromJson(message, SeckillQueueRequestDTO.class);
+            if (req == null) {
+                log.warn("收到无效的秒杀消息: {}", message);
+                return;
+            }
             processOne(req);
+        } catch (Exception e) {
+            log.error("处理秒杀消息失败: {}", message, e);
         }
     }
 

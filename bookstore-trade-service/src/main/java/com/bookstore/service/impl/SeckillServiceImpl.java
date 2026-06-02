@@ -18,6 +18,7 @@ import com.bookstore.mapper.SeckillOrderMapper;
 import com.bookstore.response.PageResult;
 import com.bookstore.response.Result;
 import com.bookstore.response.ResultCode;
+import com.bookstore.config.mq.RabbitMQConfig;
 import com.bookstore.service.SeckillService;
 import com.bookstore.utils.OssUrlBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ import org.redisson.api.RAtomicLong;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.LongCodec;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -86,6 +88,7 @@ public class SeckillServiceImpl implements SeckillService {
     private final OssUrlBuilder ossUrlBuilder;
     private final BookClient bookServiceClient;
     private final UserClient userServiceClient;
+    private final RabbitTemplate rabbitTemplate;
 
     private <T> T unwrap(Result<T> result) {
         if (result == null || result.getCode() != ResultCode.SUCCESS.getCode()) {
@@ -213,6 +216,8 @@ public class SeckillServiceImpl implements SeckillService {
         order.setExpireTime(expireTime);
         order.setAddressSnapshot(toJsonSnapshot(address));
         seckillOrderMapper.insert(order);
+
+        sendOrderTimeoutMessage(order.getId());
 
         seckillActivityMapper.update(null,
             new LambdaUpdateWrapper<SeckillActivity>()
@@ -373,6 +378,12 @@ public class SeckillServiceImpl implements SeckillService {
         }
         long seq = counter.incrementAndGet();
         return "SK" + datePrefix + String.format("%06d", seq);
+    }
+
+    @SneakyThrows
+    private void sendOrderTimeoutMessage(Long orderId) {
+        Map<String, Long> msg = Map.of("orderId", orderId);
+        rabbitTemplate.convertAndSend(RabbitMQConfig.ORDER_DELAY_EXCHANGE, RabbitMQConfig.ORDER_DELAY_ROUTING_KEY, objectMapper.writeValueAsString(msg));
     }
 
     @SneakyThrows

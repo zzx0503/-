@@ -9,5 +9,5 @@ public interface SeckillQueueService {
 
     SeckillQueueStatusVO queryStatus(String requestId);
 
-    void consume();
+    void consume(String message);
 }

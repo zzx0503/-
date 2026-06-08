@@ -1,0 +1,18 @@
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive config — NEVER commit real secrets
+application-local.yml
+application-dev.yml
+application-prod.yml

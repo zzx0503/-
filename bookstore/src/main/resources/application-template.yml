@@ -1,0 +1,106 @@
+# ==================== 智能书店系统 - 配置模板 ====================
+# 使用方式: 复制为 application.yml，填入真实值
+
+# 服务器配置
+server:
+  port: 8080
+
+# Spring 框架配置
+spring:
+  application:
+    name: bookstore
+
+  # 数据库配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/bookstore?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: YOUR_DB_USERNAME
+    password: YOUR_DB_PASSWORD
+
+  # Flyway 数据库迁移工具配置
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    out-of-order: false
+    validate-on-migrate: false
+
+  # Redis 缓存配置
+  data:
+    redis:
+      host: YOUR_REDIS_HOST
+      port: 6379
+      password: YOUR_REDIS_PASSWORD
+      timeout: 3s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+
+  # RabbitMQ 消息队列配置
+  rabbitmq:
+    host: YOUR_RABBITMQ_HOST
+    port: 5672
+    username: YOUR_RABBITMQ_USERNAME
+    password: YOUR_RABBITMQ_PASSWORD
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: auto
+        concurrency: 2
+        max-concurrency: 10
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+
+# MyBatis-Plus ORM 框架配置
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# JWT Token 配置
+jwt:
+  secret: YOUR_JWT_SECRET_AT_LEAST_32_CHARS
+  access-token-ttl: 2h
+  refresh-token-ttl: 7d
+
+# 书店业务配置
+bookstore:
+  # 阿里云 OSS 对象存储配置
+  oss:
+    endpoint: oss-cn-beijing.aliyuncs.com
+    bucket: YOUR_OSS_BUCKET
+    access-key-id: YOUR_ALIBABA_ACCESS_KEY_ID
+    access-key-secret: YOUR_ALIBABA_ACCESS_KEY_SECRET
+    sts-role-arn: ${OSS_STS_ROLE_ARN:acs:ram::1234567890123456:role/your-oss-role}
+    sts-duration-seconds: 3600
+    public-prefix: https://YOUR_BUCKET.oss-cn-beijing.aliyuncs.com/
+    avatar-dir: avatars/
+    book-cover-dir: covers/
+    review-image-dir: reviews/
+    book-cover-source-dir: D:/projects/书本图片
+
+  # AI 智能助手配置（阿里百炼 DashScope）
+  ai:
+    enabled: true
+    api-base: ${AI_API_BASE:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    api-key: YOUR_DASHSCOPE_API_KEY
+    model: ${AI_MODEL:qwen-plus}
+
+    # AI 搜索和推荐复用主编排 API，可单独覆盖
+    # search-model: qwen-turbo
+    # recommend-model: qwen-turbo
+
+    temperature: 0.7
+    max-tokens: 1024
+    timeout-seconds: 30
+    history-limit: 10
+
+# 日志配置
+logging:
+  level:
+    com.bookstore: debug

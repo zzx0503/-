@@ -1,87 +1,136 @@
-# 智能书店系统(Bookstore)
+# 智能书店系统 (Bookstore)
 
-毕设项目 — Spring Boot 3.2.5 + MyBatis-Plus + JWT + Redis 后端。
+毕设项目 — Spring Boot 3.2.5 单体后端，涵盖图书商城、秒杀、AI 智能搜索/推荐、消息队列等完整功能。
 
-## 已完成 (v0.1-auth-ready)
+## 技术栈
 
-- 单模块 Maven 工程,Spring Boot 3.2.5 + Java 17
-- Flyway V1 完整 schema(user/address/book/order/...,Plan 2-6 会扩展)
-- 三层异常体系:`BusinessException` / `AuthException` / `GlobalExceptionHandler`
-- JWT 双 token + Redis 黑名单(jti + TTL)
-- 用户认证:注册 / 登录 / 刷新 / 登出
-- 用户资料:GET/PUT `/api/user/me`,改密,换头像
-- 收货地址:CRUD + 默认切换 + 删默认自动提升
-- Testcontainers 集成测试(MySQL + Redis)— `SmokeIT` + `AuthFlowIT`(9 测)
-- 13 个端点 Postman collection
+| 类别 | 技术 |
+|------|------|
+| 框架 | Spring Boot 3.2.5 + Spring MVC |
+| ORM | MyBatis-Plus 3.5.5 |
+| 数据库 | MySQL 8.0 + Flyway 迁移 |
+| 缓存 | Redis (Lettuce) |
+| 分布式 | Redisson 3.27.2（锁/布隆过滤器） |
+| 消息队列 | RabbitMQ + Spring AMQP |
+| 认证 | JWT (jjwt 0.12.5) 双 token + Redis 黑名单 |
+| 对象存储 | 阿里云 OSS（STS 临时凭证） |
+| AI | 阿里百炼 DashScope (OpenAI 兼容) + 通义千问 |
+| API 文档 | Knife4j 4.4.0 |
+| 工具 | Lombok + MapStruct |
+| 测试 | JUnit 5 + Testcontainers |
 
-## 目录结构
+## 功能模块
 
-```
-bookstore (jar)
-└── src/main/java/com/bookstore
-    ├── anno        注解(LoginRequired / AdminRequired / RateLimit)
-    ├── aop         切面(RateLimitAspect)
-    ├── app         启动类 + Spring 配置
-    ├── config      额外配置(OpenApiConfig / RedissonConfig)
-    ├── context     用户上下文(CurrentUser / UserContext)
-    ├── controller  REST 控制器
-    ├── domain      PO / DTO / VO / 枚举
-    ├── exception   异常体系
-    ├── filter      过滤器(CorsFilter / JwtAuthenticationFilter)
-    ├── interceptor 拦截器(LoginInterceptor / AdminInterceptor)
-    ├── mapper      MyBatis-Plus Mapper
-    ├── response    统一响应(Result / PageResult / ResultCode)
-    ├── service     业务逻辑接口
-    ├── service/impl 业务逻辑实现
-    └── utils       工具类
-```
+### 用户
+- 注册/登录/登出、JWT 双 token 刷新
+- 个人资料修改、密码修改、头像上传（OSS）
+- 钱包余额、交易流水
+
+### 图书商城
+- 图书分类（二级树）
+- 图书列表/详情、多维度搜索
+- 购物车 CRUD
+- 下单（含优惠券计算）、微信支付模拟
+- 收藏夹、搜索历史
+
+### AI 智能助手
+- **对话**：多轮对话，支持图书推荐、购物咨询
+- **搜索**：自然语言搜书（AI 提取关键词 → 数据库多维检索 → AI 排序精选）
+- **推荐**：基于用户画像的个性化推荐
+
+### 秒杀
+- 后台管理秒杀活动
+- Redis 预售库存 + Lua 原子扣减
+- RabbitMQ 异步排队削峰
+- 用户限购、订单超时取消
+
+### 优惠券
+- 后台创建优惠券模板（满减/折扣/运费券）
+- 用户领取、下单时自动计算最优方案
+- 锁定/释放/过期处理
+
+### 签到
+- 每日签到领金币
+- 连续签到奖励递增
+
+### 后台管理
+- 仪表盘统计
+- 图书/分类 CRUD、封面批量导入
+- 订单管理
+- 操作日志
 
 ## 快速开始
 
 ```bash
-# 编译 + 单元/切片测试(无需 Docker)
-mvn clean test
+# 1. 复制配置模板并填入真实值
+cp src/main/resources/application-template.yml src/main/resources/application.yml
 
-# 集成测试 (Testcontainers — 需要 Docker)
-mvn verify
+# 2. 编译
+mvn clean compile
 
-# 启动应用
+# 3. 启动（需 MySQL、Redis、RabbitMQ）
 mvn spring-boot:run
 ```
 
-应用默认监听 `http://localhost:8080`。
+应用默认监听 `http://localhost:8080`，API 文档 `/doc.html`。
 
-> 集成测试在 `src/test/java/com/bookstore/app/it/`,文件名后缀 `*IT.java`,由 maven-failsafe-plugin 在 `verify` 阶段执行。需要本机或远程 Docker;远程时设 `DOCKER_HOST=tcp://<vm-ip>:2375`(或 `:2376` + TLS)。
+## 外部依赖
 
-## API 列表 (Plan 1)
+| 服务 | 说明 |
+|------|------|
+| MySQL 8.0 | 主数据库 |
+| Redis | 缓存、Token 黑名单、秒杀库存 |
+| RabbitMQ | 秒杀队列、订单超时延迟消息 |
+| 阿里云 OSS | 头像/封面图片存储 |
+| 阿里百炼 DashScope | AI 对话/搜索/推荐 |
 
-### Auth
+## 项目结构
 
-| Method | Path | 鉴权 | 说明 |
-|---|---|---|---|
-| POST | /api/auth/register | 否 | 注册并自动登录 |
-| POST | /api/auth/login | 否 | 用户名/手机号 + 密码 |
-| POST | /api/auth/refresh | 否 | 用 refresh 换新对 |
-| POST | /api/auth/logout | 是 | 把 access token 加黑名单 |
+```
+bookstore
+├── src/main/java/com/bookstore
+│   ├── anno             注解 (@LoginRequired, @AdminRequired, @RateLimit)
+│   ├── aop              切面 (限流、操作日志、搜索历史)
+│   ├── app              启动类 + 框架配置
+│   ├── config           业务配置 (OSS, AI, Redisson, MQ, 异步)
+│   ├── context          用户上下文 (ThreadLocal)
+│   ├── controller       用户端控制器 (16 个) + admin 控制器 (9 个)
+│   ├── domain           实体(PO) / DTO / VO
+│   ├── exception        全局异常处理
+│   ├── filter           过滤器 (JWT 鉴权、CORS)
+│   ├── interceptor      拦截器 (登录/管理员)
+│   ├── mapper           MyBatis-Plus Mapper
+│   ├── response         统一响应 (Result / PageResult / ResultCode)
+│   ├── service          业务接口 + impl 实现
+│   ├── service/ai       AI 客户端 (OpenAI 兼容协议)
+│   └── utils            工具类 (JWT, 密码加密, OSS URL)
+├── src/main/resources
+│   ├── db/migration     Flyway 迁移脚本 (V1-V11)
+│   └── application-template.yml  配置模板
+└── src/test             单元测试 + 集成测试
+```
 
-### User
+## 数据库迁移
 
-| Method | Path | 鉴权 | 说明 |
-|---|---|---|---|
-| GET | /api/user/me | 是 | 当前用户资料 |
-| PUT | /api/user/me | 是 | 改昵称/性别/生日 |
-| PUT | /api/user/me/password | 是 | 改密码 |
-| PUT | /api/user/me/avatar | 是 | 更新头像 OSS key |
+使用 Flyway 管理表结构，迁移脚本位于 `src/main/resources/db/migration/`：
 
-### Address
+| 版本 | 内容 |
+|------|------|
+| V1 | 初始表结构 (user, book, order, cart, address 等) |
+| V2 | 分类与交易扩展 |
+| V3 | 图书种子数据 |
+| V4 | 钱包与余额 |
+| V5 | TXT 图书导入 |
+| V6 | 优惠券 |
+| V7 | 秒杀 |
+| V8 | 操作日志 |
+| V9 | AI 对话 |
+| V10 | 分类数据更新 |
+| V11 | 签到 |
 
-| Method | Path | 鉴权 | 说明 |
-|---|---|---|---|
-| GET | /api/address | 是 | 列表(默认在前) |
-| POST | /api/address | 是 | 新增 |
-| PUT | /api/address/{id} | 是 | 修改 |
-| DELETE | /api/address/{id} | 是 | 软删 |
-| PUT | /api/address/{id}/default | 是 | 设默认 |
+## 配置说明
 
-完整 Postman collection 在 [`docs/postman/bookstore-auth.postman_collection.json`](docs/postman/bookstore-auth.postman_collection.json)。
-导入后先调 `Auth/Register` 或 `Auth/Login`,test 脚本会自动把 `accessToken` / `refreshToken` 写入 collection variables,后续请求会自动带 `Authorization: Bearer {{accessToken}}`。
+1. 复制 `application-template.yml` → `application.yml`
+2. 填入数据库、Redis、RabbitMQ 连接信息
+3. 填入阿里云 OSS AccessKey 和 DashScope API Key
+4. `application.yml` 已在 `.gitignore` 中排除，不会被提交

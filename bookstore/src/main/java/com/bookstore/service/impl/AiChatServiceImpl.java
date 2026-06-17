@@ -1,6 +1,7 @@
 package com.bookstore.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.bookstore.config.AiAgentProperties;
 import com.bookstore.config.AiProperties;
 import com.bookstore.domain.dto.ai.ChatRequestDTO;
 import com.bookstore.domain.dto.ai.RenameSessionDTO;
@@ -17,10 +18,12 @@ import com.bookstore.mapper.AiChatSessionMapper;
 import com.bookstore.mapper.BookMapper;
 import com.bookstore.response.ResultCode;
 import com.bookstore.service.AiChatService;
+import com.bookstore.service.ai.AiAgentClient;
 import com.bookstore.service.ai.AiClient;
 import com.bookstore.service.ai.AiClient.ChatMsg;
 import com.bookstore.utils.OssUrlBuilder;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AiChatServiceImpl implements AiChatService {
 
@@ -41,7 +45,9 @@ public class AiChatServiceImpl implements AiChatService {
     private final AiChatMessageMapper messageMapper;
     private final BookMapper bookMapper;
     private final AiClient aiClient;
+    private final AiAgentClient aiAgentClient;
     private final AiProperties aiProps;
+    private final AiAgentProperties agentProps;
     private final OssUrlBuilder ossUrlBuilder;
 
     private static final int CANDIDATES_LIMIT = 6;
@@ -56,23 +62,36 @@ public class AiChatServiceImpl implements AiChatService {
         AiChatMessage userMsg = persistMessage(session.getId(), userId, "user", dto.getMessage(), null);
 
         List<Book> candidates = retrieveBookCandidates(dto.getMessage(), CANDIDATES_LIMIT);
-        String ragContext = buildContextSnippet(candidates);
 
-        List<ChatMsg> messages = new ArrayList<>();
-        String systemPrompt = aiProps.getSystemPrompt();
-        if (!ragContext.isEmpty()) {
-            systemPrompt = systemPrompt + "\n\n图书目录参考(可在回复中按需引用):\n" + ragContext;
+        String reply;
+        List<Book> referenced;
+
+        if (agentProps.isEnabled()) {
+            try {
+                List<Map<String, Object>> candidateMaps = candidates.stream()
+                    .map(this::toCandidateMap).toList();
+                List<Map<String, Object>> history = loadHistory(
+                    session.getId(), aiProps.getHistoryLimit(), userMsg.getId()
+                ).stream().map(m -> Map.<String, Object>of("role", m.getRole(), "content", m.getContent()))
+                 .toList();
+
+                var agentResp = aiAgentClient.chat(
+                    userId, dto.getMessage(), session.getId(), history, candidateMaps);
+                reply = agentResp.reply();
+                referenced = matchReferencedBooks(reply, candidates);
+            } catch (BusinessException ex) {
+                if (agentProps.isFallbackOnFailure()) {
+                    log.warn("Agent failed, fallback to direct LLM: {}", ex.getMessage());
+                    reply = directChatReply(session, userMsg, candidates, dto.getMessage());
+                    referenced = matchReferencedBooks(reply, candidates);
+                } else {
+                    throw ex;
+                }
+            }
+        } else {
+            reply = directChatReply(session, userMsg, candidates, dto.getMessage());
+            referenced = matchReferencedBooks(reply, candidates);
         }
-        messages.add(ChatMsg.system(systemPrompt));
-
-        for (AiChatMessage m : loadHistory(session.getId(), aiProps.getHistoryLimit(), userMsg.getId())) {
-            messages.add(new ChatMsg(m.getRole(), m.getContent()));
-        }
-        messages.add(ChatMsg.user(dto.getMessage()));
-
-        String reply = aiClient.chatCompletion(messages);
-
-        List<Book> referenced = matchReferencedBooks(reply, candidates);
         String refIds = referenced.isEmpty()
             ? null
             : referenced.stream().map(b -> b.getId().toString()).collect(Collectors.joining(","));
@@ -91,6 +110,32 @@ public class AiChatServiceImpl implements AiChatService {
         vo.setReferencedBooks(referenced.stream().map(this::toListVO).collect(Collectors.toList()));
         vo.setCreateTime(assistantMsg.getCreateTime());
         return vo;
+    }
+
+    private String directChatReply(AiChatSession session, AiChatMessage userMsg,
+                                    List<Book> candidates, String userMessage) {
+        String ragContext = buildContextSnippet(candidates);
+        List<ChatMsg> messages = new ArrayList<>();
+        String systemPrompt = aiProps.getSystemPrompt();
+        if (!ragContext.isEmpty()) {
+            systemPrompt = systemPrompt + "\n\n图书目录参考(可在回复中按需引用):\n" + ragContext;
+        }
+        messages.add(ChatMsg.system(systemPrompt));
+        for (AiChatMessage m : loadHistory(session.getId(), aiProps.getHistoryLimit(), userMsg.getId())) {
+            messages.add(new ChatMsg(m.getRole(), m.getContent()));
+        }
+        messages.add(ChatMsg.user(userMessage));
+        return aiClient.chatCompletion(messages);
+    }
+
+    private Map<String, Object> toCandidateMap(Book b) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("id", b.getId());
+        m.put("title", b.getTitle());
+        m.put("author", b.getAuthor());
+        m.put("price", b.getPrice() == null ? null : b.getPrice().toPlainString());
+        m.put("description", b.getDescription());
+        return m;
     }
 
     @Override

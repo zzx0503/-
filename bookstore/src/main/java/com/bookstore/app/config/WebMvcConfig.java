@@ -22,7 +22,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 "/api/auth/login",
                 "/api/auth/register",
                 "/api/auth/refresh",
-                "/error", "/doc.html", "/v3/api-docs/**", "/webjars/**", "/actuator/**"
+                "/error", "/doc.html", "/v3/api-docs/**", "/webjars/**", "/actuator/**",
+                "/internal/agent-tools/**"
             );
         registry.addInterceptor(adminInterceptor)
             .addPathPatterns("/admin-api/**")

@@ -100,7 +100,18 @@ bookstore:
     timeout-seconds: 30
     history-limit: 10
 
+    # Python LangChain Agent 服务配置（企业级 AI 网关）
+    agent:
+      enabled: ${AI_AGENT_ENABLED:false}
+      auto-start: false  # 随项目自动启动 Agent 进程
+      project-path: D:/IDEA/demo/ai-agent  # Agent 项目路径
+      base-url: ${AI_AGENT_BASE_URL:http://localhost:8000}
+      api-key: ${AI_AGENT_API_KEY:}
+      timeout-seconds: 120
+      fallback-on-failure: true
+      max-tool-rounds: 5
+
 # 日志配置
 logging:
   level:
-    com.bookstore: debug
+    com.bookstore: info

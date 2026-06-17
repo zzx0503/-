@@ -1,5 +1,6 @@
 package com.bookstore.service;
 
+import com.bookstore.config.AiAgentProperties;
 import com.bookstore.config.AiProperties;
 import com.bookstore.domain.po.Book;
 import com.bookstore.domain.vo.book.BookListVO;
@@ -8,6 +9,7 @@ import com.bookstore.mapper.FavoriteMapper;
 import com.bookstore.mapper.OrderItemMapper;
 import com.bookstore.mapper.OrderMainMapper;
 import com.bookstore.mapper.SearchHistoryMapper;
+import com.bookstore.service.ai.AiAgentClient;
 import com.bookstore.service.ai.AiClient;
 import com.bookstore.service.ai.AiClient.ChatMsg;
 import com.bookstore.utils.OssUrlBuilder;
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,7 +32,9 @@ import java.util.stream.Collectors;
 public class AiBookAgentService {
 
     private final AiClient aiClient;
+    private final AiAgentClient aiAgentClient;
     private final AiProperties aiProps;
+    private final AiAgentProperties agentProps;
     private final BookMapper bookMapper;
     private final FavoriteMapper favoriteMapper;
     private final OrderMainMapper orderMainMapper;
@@ -39,44 +44,56 @@ public class AiBookAgentService {
 
     private static final int CANDIDATE_LIMIT = 30;
 
-    public List<BookListVO> aiSearch(String keyword) {
+    public List<BookListVO> aiSearch(String keyword, Long userId) {
+        long t0 = System.currentTimeMillis();
         if (!hasText(keyword)) {
             return Collections.emptyList();
         }
         String kw = keyword.trim();
+        log.info("[aiSearch] query=\"{}\"", kw);
 
-        // Step 1: AI extracts searchable keywords from natural language
-        List<String> keywords = extractKeywords(kw);
-        log.debug("AI extracted keywords: {} from query: {}", keywords, kw);
-
-        // Step 2: Use keywords to search database
-        List<Book> candidates = retrieveCandidates(keywords, CANDIDATE_LIMIT);
-        if (candidates.isEmpty()) {
-            return Collections.emptyList();
+        // Fast path: direct DB search for specific titles/authors (short, non-conversational queries)
+        if (isDirectLookup(kw)) {
+            List<Book> direct = bookMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
+                    .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                    .and(w -> w.like(Book::getTitle, kw).or().like(Book::getAuthor, kw))
+                    .orderByDesc(Book::getSalesCount).last("LIMIT 20")
+            );
+            if (!direct.isEmpty()) {
+                log.info("[aiSearch] 快速通道 {}ms, results={}", System.currentTimeMillis() - t0, direct.size());
+                return direct.stream().map(this::toListVO).collect(Collectors.toList());
+            }
         }
 
-        // Step 3: AI ranks candidates by relevance
-        try {
-            String prompt = buildCandidatePrompt(candidates)
-                + "\n用户搜索意图: \"" + kw + "\"\n"
-                + "请从候选图书中选出最匹配的图书ID列表（纯数字逗号分隔，不要解释）：";
+        // Agent path: conversational/semantic queries
+        String userProfile = userId != null ? buildUserProfile(userId) : null;
+        List<Book> candidates = bookMapper.selectList(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
+                .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                .orderByDesc(Book::getSalesCount).last("LIMIT 30")
+        );
+        List<Map<String, Object>> candidateMaps = candidates.stream()
+            .map(this::toBookMap).toList();
 
-            List<ChatMsg> messages = List.of(
-                ChatMsg.system(aiProps.getSearchSystemPrompt()),
-                ChatMsg.user(prompt)
-            );
-            String reply = aiClient.chatCompletion(
-                messages,
-                aiProps.getSearchModel(),
-                aiProps.getSearchApiBase(),
-                aiProps.getSearchApiKey()
-            );
-            List<Long> ids = parseIdList(reply);
-            return fetchBooksByIds(ids);
-        } catch (Exception e) {
-            log.warn("AI search failed, fallback to keyword match", e);
-            return candidates.stream().map(this::toListVO).collect(Collectors.toList());
+        if (agentProps.isEnabled()) {
+            try {
+                var agentResp = aiAgentClient.search(kw, candidateMaps, userId, userProfile);
+                List<Long> ids = agentResp.bookIds();
+                if (!ids.isEmpty()) {
+                    List<BookListVO> result = fetchBooksByIds(ids);
+                    log.info("[aiSearch] Agent {}ms, {} books, reasons={}",
+                        System.currentTimeMillis() - t0, result.size(), agentResp.reasons());
+                    return result;
+                }
+            } catch (Exception e) {
+                if (!agentProps.isFallbackOnFailure()) throw e;
+                log.warn("[aiSearch] Agent失败降级, error={}", e.getMessage());
+            }
         }
+
+        log.info("[aiSearch] Agent不可用, Total {}ms", System.currentTimeMillis() - t0);
+        return Collections.emptyList();
     }
 
     private List<String> extractKeywords(String query) {
@@ -110,44 +127,133 @@ public class AiBookAgentService {
     public List<BookListVO> aiRecommend(Long userId, Integer limit) {
         if (limit == null || limit < 1) limit = 10;
 
-        Set<Long> excludeIds = getUserInteractedBookIds(userId);
-        List<Book> candidates = retrieveRecommendCandidates(excludeIds, CANDIDATE_LIMIT);
-        if (candidates.isEmpty()) {
-            return Collections.emptyList();
+        String userProfile = buildUserProfile(userId);
+        log.info("[aiRecommend] userId={}", userId);
+
+        if (agentProps.isEnabled()) {
+            try {
+                var agentResp = aiAgentClient.recommend(userId, userProfile, Collections.emptyList(), limit);
+                List<Long> ids = agentResp.bookIds();
+                if (!ids.isEmpty()) {
+                    return fetchBooksByIds(ids);
+                }
+            } catch (Exception e) {
+                if (!agentProps.isFallbackOnFailure()) throw e;
+                log.warn("[aiRecommend] Agent失败降级, error={}", e.getMessage());
+            }
         }
 
-        String userProfile = buildUserProfile(userId);
-        try {
-            String prompt = buildCandidatePrompt(candidates)
-                + "\n用户画像: " + (hasText(userProfile) ? userProfile : "新用户，暂无偏好记录")
-                + "\n请推荐 " + limit + " 本最适合该用户的图书ID（纯数字逗号分隔，不要解释）：";
+        return Collections.emptyList();
+    }
 
-            List<ChatMsg> messages = List.of(
-                ChatMsg.system(aiProps.getRecommendSystemPrompt()),
-                ChatMsg.user(prompt)
+    // 中文停用词：去掉这些词后剩下的就是有检索意义的关键词
+    private static final Set<String> STOP_WORDS = Set.of(
+        "帮我", "推荐", "一本", "一下", "有没有", "什么", "哪些", "哪个", "我想",
+        "可以", "能", "适合", "好看", "值得", "求", "找", "要", "想", "看", "买",
+        "我", "你", "他", "她", "它", "我们", "你们", "他们",
+        "的", "了", "在", "是", "有", "和", "与", "或", "等", "及",
+        "不", "很", "都", "也", "就", "还", "把", "被", "让", "给",
+        "吗", "吧", "呢", "啊", "哦", "嗯", "么", "嘛",
+        "这", "那", "些", "个", "本", "册", "套",
+        "比较", "非常", "特别", "挺", "更", "最",
+        "关于", "对于", "根据", "按照",
+        "书", "图书", "书籍"  // 太泛，在所有书中匹配没意义
+    );
+
+    private List<String> extractLocalKeywords(String query) {
+        // 按停用词切分，保留有意义的片段
+        String remaining = query;
+        // 按长度从长到短排序，优先匹配长的停用词（如"有没有"优先于"有"）
+        String[] sortedStopWords = STOP_WORDS.stream()
+            .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+            .toArray(String[]::new);
+        for (String sw : sortedStopWords) {
+            remaining = remaining.replace(sw, " ");
+        }
+        List<String> result = new ArrayList<>();
+        for (String part : remaining.split("[\\s,，。！？、；：''【】《》（）\\p{Punct}]+")) {
+            String t = part.trim();
+            // 保留长度 >= 2 且有实际意义的词
+            if (t.length() >= 2 && !t.matches("^[0-9\\p{Punct}]+$")) {
+                result.add(t);
+            }
+        }
+        return result.isEmpty() ? List.of(query) : result;
+    }
+
+    private List<Book> retrieveCandidates(String query, int limit) {
+        List<String> keywords = extractLocalKeywords(query);
+        log.info("[aiSearch] local keywords: {} from query: \"{}\"", keywords, query);
+
+        Set<Long> ids = new LinkedHashSet<>();
+        List<Book> result = new ArrayList<>();
+
+        for (String kw : keywords) {
+            if (result.size() >= limit) break;
+
+            // 1. Title / author LIKE match
+            int remaining = limit - result.size();
+            List<Book> titleMatch = bookMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
+                    .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                    .and(w -> w.like(Book::getTitle, kw).or().like(Book::getAuthor, kw))
+                    .notIn(!ids.isEmpty(), Book::getId, ids)
+                    .orderByDesc(Book::getSalesCount)
+                    .last("LIMIT " + remaining)
             );
-            String reply = aiClient.chatCompletion(
-                messages,
-                aiProps.getRecommendModel(),
-                aiProps.getRecommendApiBase(),
-                aiProps.getRecommendApiKey()
-            );
-            List<Long> ids = parseIdList(reply);
-            List<BookListVO> result = fetchBooksByIds(ids);
+            for (Book b : titleMatch) {
+                if (ids.add(b.getId())) result.add(b);
+            }
+
+            // 2. Description LIKE match
             if (result.size() < limit) {
-                Set<Long> found = result.stream().map(BookListVO::getId).collect(Collectors.toSet());
-                for (Book b : candidates) {
-                    if (!found.contains(b.getId())) {
-                        result.add(toListVO(b));
-                        if (result.size() >= limit) break;
-                    }
+                remaining = limit - result.size();
+                List<Book> descMatch = bookMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
+                        .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                        .like(Book::getDescription, kw)
+                        .notIn(!ids.isEmpty(), Book::getId, ids)
+                        .orderByDesc(Book::getSalesCount)
+                        .last("LIMIT " + remaining)
+                );
+                for (Book b : descMatch) {
+                    if (ids.add(b.getId())) result.add(b);
                 }
             }
-            return result.stream().limit(limit).collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("AI recommend failed, fallback to hot books", e);
-            return candidates.stream().limit(limit).map(this::toListVO).collect(Collectors.toList());
+
+            // 3. Category name LIKE match
+            if (result.size() < limit) {
+                remaining = limit - result.size();
+                List<Book> catMatch = bookMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
+                        .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                        .apply("category_id IN (SELECT id FROM category WHERE name LIKE {0} AND deleted = 0)",
+                            "%" + kw + "%")
+                        .notIn(!ids.isEmpty(), Book::getId, ids)
+                        .orderByDesc(Book::getSalesCount)
+                        .last("LIMIT " + remaining)
+                );
+                for (Book b : catMatch) {
+                    if (ids.add(b.getId())) result.add(b);
+                }
+            }
         }
+
+        // 4. Hot sellers fallback
+        if (result.size() < limit) {
+            int remaining = limit - result.size();
+            List<Book> hot = bookMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
+                    .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                    .notIn(!ids.isEmpty(), Book::getId, ids)
+                    .orderByDesc(Book::getSalesCount)
+                    .last("LIMIT " + remaining)
+            );
+            for (Book b : hot) {
+                if (ids.add(b.getId())) result.add(b);
+            }
+        }
+        return result;
     }
 
     private List<Book> retrieveCandidates(List<String> keywords, int limit) {
@@ -252,7 +358,7 @@ public class AiBookAgentService {
             if (b.getPrice() != null) sb.append(" 价格:¥").append(b.getPrice().toPlainString());
             if (hasText(b.getDescription())) {
                 String desc = b.getDescription().replaceAll("\\s+", " ");
-                sb.append(" 简介:").append(truncate(desc, 60));
+                sb.append(" 简介:").append(desc.length() > 200 ? desc.substring(0, 200) + "..." : desc);
             }
             sb.append('\n');
         }
@@ -379,6 +485,31 @@ public class AiBookAgentService {
         vo.setRating(b.getRating());
         vo.setCategoryId(b.getCategoryId());
         return vo;
+    }
+
+    private Map<String, Object> toBookMap(Book b) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("id", b.getId());
+        m.put("title", b.getTitle());
+        m.put("author", b.getAuthor());
+        m.put("price", b.getPrice() == null ? null : b.getPrice().toPlainString());
+        m.put("description", b.getDescription());
+        return m;
+    }
+
+    // 判断是否为直接书名/作者查找（短词、非自然语言）
+    private static final Set<String> CONVERSATIONAL = Set.of(
+        "推荐", "帮我", "有没有", "什么", "哪些", "哪个", "我想", "想要",
+        "适合", "好看", "值得", "求", "找", "可以", "给我", "一本",
+        "一下", "看看", "下雨", "周末", "睡前", "过年", "放假"
+    );
+
+    private static boolean isDirectLookup(String query) {
+        if (query.length() > 8) return false; // 长文本大概率是自然语言
+        for (String cw : CONVERSATIONAL) {
+            if (query.contains(cw)) return false;
+        }
+        return true;
     }
 
     private static boolean hasText(String s) {

@@ -96,7 +96,9 @@ public class BookController {
     @Operation(summary = "AI 智能搜索")
     @GetMapping("/ai-search")
     public Result<List<BookListVO>> aiSearch(@RequestParam String keyword) {
-        return Result.success(aiBookAgentService.aiSearch(keyword));
+        com.bookstore.context.CurrentUser cu = UserContext.get();
+        Long userId = cu != null ? cu.getUserId() : null;
+        return Result.success(aiBookAgentService.aiSearch(keyword, userId));
     }
 
     /**

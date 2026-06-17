@@ -41,3 +41,4 @@ redis-data/
 
 # Sensitive config (copy from application-template.yml)
 src/main/resources/application.yml
+src/main/resources/application-local.yml

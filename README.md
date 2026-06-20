@@ -1,6 +1,6 @@
 # "悦读云"智能图书电商与推荐平台
 
-> 毕设项目 — Spring Boot 3 + LangChain FastAPI 双引擎，涵盖图书商城、AI 智能体、秒杀、优惠券等完整功能。
+> 毕设项目 — Spring Boot 3 + LangChain FastAPI 双引擎，涵盖图书商城、AI 智能体搜索和推荐对、话、秒杀、优惠券、签到等完整功能。
 
 ## 技术栈
 

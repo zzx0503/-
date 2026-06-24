@@ -27,7 +27,5 @@ ai-agent/tests/
 bookstore/docs/
 
 # Temporary scripts & lock files
-bookstore/scripts/test_suite*.py
-bookstore/scripts/skills-lock.json
-bookstore/scripts/package*.json
+bookstore/scripts/
 ai-agent/skills-lock.json

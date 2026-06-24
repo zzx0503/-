@@ -17,6 +17,7 @@ import com.bookstore.response.ResultCode;
 import com.bookstore.service.BookService;
 import com.bookstore.utils.OssUrlBuilder;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BookServiceImpl implements BookService {
@@ -118,6 +120,7 @@ public class BookServiceImpl implements BookService {
     @Cacheable(cacheNames = "book:hot", key = "#limit != null ? #limit : 10")
     public List<BookListVO> hot(Integer limit) {
         if (limit == null || limit < 1) limit = 10;
+        log.info("[hot] limit={}", limit);
         List<Book> rows = bookMapper.selectList(
             new LambdaQueryWrapper<Book>()
                 .eq(Book::getStatus, 1)
@@ -125,6 +128,7 @@ public class BookServiceImpl implements BookService {
                 .orderByDesc(Book::getSalesCount)
                 .last("LIMIT " + limit)
         );
+        log.info("[hot] results={}", rows.size());
         return rows.stream().map(this::toListVO).collect(Collectors.toList());
     }
 
@@ -147,11 +151,15 @@ public class BookServiceImpl implements BookService {
     @com.bookstore.anno.SearchHistory(type = "TEXT")
     public PageResult<BookListVO> search(String keyword, Integer page, Integer size) {
         if (!StringUtils.hasText(keyword)) {
+            log.info("[search] keyword为空");
             return PageResult.of(List.of(), 0L, (long) page, (long) size);
         }
         String kw = keyword.trim();
+        log.info("[search] keyword=\"{}\" page={} size={}", kw, page, size);
         if (kw.length() < 2) {
-            return list(simpleQuery(kw, page, size));
+            var r = list(simpleQuery(kw, page, size));
+            log.info("[search] 简单查询 total={}", r.getTotal());
+            return r;
         }
 
         try {

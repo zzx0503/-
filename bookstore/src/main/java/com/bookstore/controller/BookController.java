@@ -6,25 +6,36 @@ import com.bookstore.domain.vo.book.BookDetailVO;
 import com.bookstore.domain.vo.book.BookListVO;
 import com.bookstore.response.PageResult;
 import com.bookstore.response.Result;
+import com.bookstore.response.ResultCode;
 import com.bookstore.service.AiBookAgentService;
 import com.bookstore.service.BookRecommendationService;
 import com.bookstore.service.BookService;
 import com.bookstore.service.FavoriteService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * 图书控制器
  * 提供图书浏览、搜索、推荐等功能
  */
+@Slf4j
 @Tag(name = "图书", description = "图书浏览与搜索")
 @RestController
 @RequestMapping("/api/book")
@@ -73,7 +84,10 @@ public class BookController {
     @Operation(summary = "热销图书榜单")
     @GetMapping("/hot")
     public Result<List<BookListVO>> hot(@RequestParam(defaultValue = "10") Integer limit) {
-        return Result.success(bookService.hot(limit));
+        log.info(">>> /hot  limit={}", limit);
+        var result = bookService.hot(limit);
+        log.info("<<< /hot  count={}", result.size());
+        return Result.success(result);
     }
 
     /**
@@ -84,21 +98,105 @@ public class BookController {
     @Operation(summary = "最新上架图书")
     @GetMapping("/new")
     public Result<List<BookListVO>> newest(@RequestParam(defaultValue = "10") Integer limit) {
-        return Result.success(bookService.newest(limit));
+        log.info(">>> /new  limit={}", limit);
+        var result = bookService.newest(limit);
+        log.info("<<< /new  count={}", result.size());
+        return Result.success(result);
     }
 
     /**
      * AI 智能搜索图书
      * 使用自然语言理解用户意图，从候选图书中智能匹配
      * @param keyword 用户搜索词
-     * @return 智能匹配的图书列表
+     * @return 智能匹配的图书列表（含 durationMs 耗时）
      */
     @Operation(summary = "AI 智能搜索")
     @GetMapping("/ai-search")
     public Result<List<BookListVO>> aiSearch(@RequestParam String keyword) {
+        long start = System.currentTimeMillis();
         com.bookstore.context.CurrentUser cu = UserContext.get();
         Long userId = cu != null ? cu.getUserId() : null;
-        return Result.success(aiBookAgentService.aiSearch(keyword, userId));
+        log.info(">>> /ai-search  keyword=\"{}\" userId={}", keyword, userId);
+        List<BookListVO> data = aiBookAgentService.aiSearch(keyword, userId);
+        long ms = System.currentTimeMillis() - start;
+        log.info("<<< /ai-search  count={} {}ms", data.size(), ms);
+        return Result.success(data, ms);
+    }
+
+    // ========== 异步搜索（支持前端进度轮询） ==========
+
+    @Data
+    public static class SearchTask {
+        private String taskId;
+        private String keyword;
+        private String status; // PENDING → RUNNING → DONE | FAILED
+        private List<BookListVO> data;
+        private Long durationMs;
+        private String error;
+    }
+
+    private final ConcurrentHashMap<String, SearchTask> searchTasks = new ConcurrentHashMap<>();
+    private final Executor searchExecutor = Executors.newFixedThreadPool(4);
+
+    /**
+     * 提交异步 AI 搜索任务
+     * 立即返回 taskId，前端用 taskId 轮询结果（可实现进度条）
+     */
+    @Operation(summary = "AI 异步搜索（提交）")
+    @PostMapping("/ai-search/async")
+    public Result<Map<String, String>> submitAsyncSearch(@RequestParam String keyword) {
+        if (!hasText(keyword)) {
+            return Result.fail(ResultCode.PARAM_INVALID, "搜索词不能为空");
+        }
+        String taskId = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 8);
+        SearchTask task = new SearchTask();
+        task.setTaskId(taskId);
+        task.setKeyword(keyword);
+        task.setStatus("PENDING");
+        searchTasks.put(taskId, task);
+
+        com.bookstore.context.CurrentUser cu = UserContext.get();
+        Long userId = cu != null ? cu.getUserId() : null;
+        log.info(">>> /ai-search/async  taskId={} keyword=\"{}\" userId={}", taskId, keyword, userId);
+
+        CompletableFuture.runAsync(() -> {
+            task.setStatus("RUNNING");
+            long start = System.currentTimeMillis();
+            try {
+                List<BookListVO> result = aiBookAgentService.aiSearch(keyword, userId);
+                task.setData(result);
+                task.setDurationMs(System.currentTimeMillis() - start);
+                task.setStatus("DONE");
+                log.info("<<< /ai-search/async  taskId={} count={} {}ms", taskId, result.size(), task.getDurationMs());
+            } catch (Exception e) {
+                task.setStatus("FAILED");
+                task.setError(e.getMessage());
+                log.warn("<<< /ai-search/async  taskId={} FAILED: {}", taskId, e.getMessage());
+            }
+        }, searchExecutor);
+
+        return Result.success(Map.of("taskId", taskId));
+    }
+
+    /**
+     * 轮询异步搜索任务状态
+     * @param taskId submitAsyncSearch 返回的任务ID
+     * @return 任务状态及数据（DONE 时返回完整结果 + durationMs）
+     */
+    @Operation(summary = "AI 异步搜索（轮询）")
+    @GetMapping("/ai-search/async/{taskId}")
+    public Result<SearchTask> pollAsyncSearch(@PathVariable String taskId) {
+        SearchTask task = searchTasks.get(taskId);
+        if (task == null) {
+            log.warn("/ai-search/async  taskId={} 不存在或已过期", taskId);
+            return Result.fail(ResultCode.NOT_FOUND, "任务不存在或已过期");
+        }
+        log.debug("/ai-search/async  taskId={} status={}", taskId, task.getStatus());
+        return Result.success(task);
+    }
+
+    private static boolean hasText(String s) {
+        return s != null && !s.trim().isEmpty();
     }
 
     /**
@@ -114,7 +212,10 @@ public class BookController {
             @RequestParam String keyword,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
-        return Result.success(bookService.search(keyword, page, size));
+        log.info(">>> /search  keyword=\"{}\" page={} size={}", keyword, page, size);
+        var result = bookService.search(keyword, page, size);
+        log.info("<<< /search  total={} count={}", result.getTotal(), result.getList().size());
+        return Result.success(result);
     }
 
     /**
@@ -127,11 +228,18 @@ public class BookController {
     @Operation(summary = "AI 个性化推荐")
     @GetMapping("/ai-recommend")
     public Result<List<BookListVO>> aiRecommend(@RequestParam(defaultValue = "10") Integer limit) {
+        long start = System.currentTimeMillis();
         com.bookstore.context.CurrentUser cu = UserContext.get();
         if (cu == null) {
-            return Result.success(bookService.hot(limit));
+            log.info(">>> /ai-recommend  未登录, limit={}", limit);
+            var result = bookService.hot(limit);
+            log.info("<<< /ai-recommend  热门兜底 {} {}ms", result.size(), System.currentTimeMillis() - start);
+            return Result.success(result);
         }
-        return Result.success(aiBookAgentService.aiRecommend(cu.getUserId(), limit));
+        log.info(">>> /ai-recommend  userId={} limit={}", cu.getUserId(), limit);
+        var result = aiBookAgentService.aiRecommend(cu.getUserId(), limit);
+        log.info("<<< /ai-recommend  count={} {}ms", result.size(), System.currentTimeMillis() - start);
+        return Result.success(result);
     }
 
     /**
@@ -144,6 +252,9 @@ public class BookController {
     @Operation(summary = "相似图书")
     @GetMapping("/{id}/similar")
     public Result<List<BookListVO>> similar(@PathVariable Long id, @RequestParam(defaultValue = "6") Integer limit) {
-        return Result.success(bookRecommendationService.similarBooks(id, limit));
+        log.info(">>> /{}/similar  limit={}", id, limit);
+        var result = bookRecommendationService.similarBooks(id, limit);
+        log.info("<<< /{}/similar  count={}", id, result.size());
+        return Result.success(result);
     }
 }

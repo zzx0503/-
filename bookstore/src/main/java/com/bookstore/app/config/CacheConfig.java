@@ -40,6 +40,8 @@ public class CacheConfig {
         configs.put("category:tree", defaultCacheConfig(Duration.ofMinutes(60)));
         configs.put("seckill:running", defaultCacheConfig(Duration.ofMinutes(1)));
         configs.put("seckill:upcoming", defaultCacheConfig(Duration.ofMinutes(1)));
+        configs.put("ai:search:candidates", defaultCacheConfig(Duration.ofMinutes(10)));
+        configs.put("ai:search:results:v2", defaultCacheConfig(Duration.ofMinutes(15)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

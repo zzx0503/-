@@ -90,7 +90,7 @@ public class AiAgentClient {
     public record AgentChatResponse(String reply, List<Long> referencedBookIds) {}
 
     public AgentSearchResponse search(String keyword, List<Map<String, Object>> candidates,
-                                      Long userId, String userProfile) {
+                                      Long userId, String userProfile, boolean profileAnalyzed) {
         String url = trimSlash(agentProps.getBaseUrl()) + "/agent/search";
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("keyword", keyword);
@@ -101,6 +101,7 @@ public class AiAgentClient {
         if (hasText(userProfile)) {
             body.put("user_profile", userProfile);
         }
+        body.put("profile_analyzed", profileAnalyzed);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -114,7 +115,8 @@ public class AiAgentClient {
             JsonNode root = objectMapper.readTree(resp.getBody());
             return new AgentSearchResponse(
                 parseLongList(root.path("book_ids")),
-                parseStringList(root.path("reasons"))
+                parseStringList(root.path("reasons")),
+                root.path("analysis").asText()
             );
         } catch (Exception ex) {
             log.warn("Agent search error", ex);
@@ -151,7 +153,7 @@ public class AiAgentClient {
         }
     }
 
-    public record AgentSearchResponse(List<Long> bookIds, List<String> reasons) {}
+    public record AgentSearchResponse(List<Long> bookIds, List<String> reasons, String analysis) {}
     public record AgentRecommendResponse(List<Long> bookIds, List<String> reasons) {}
 
     private List<String> parseStringList(JsonNode node) {

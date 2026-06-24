@@ -1,10 +1,13 @@
 package com.bookstore.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bookstore.config.AiAgentProperties;
 import com.bookstore.config.AiProperties;
 import com.bookstore.domain.po.Book;
+import com.bookstore.domain.po.CartItem;
 import com.bookstore.domain.vo.book.BookListVO;
 import com.bookstore.mapper.BookMapper;
+import com.bookstore.mapper.CartItemMapper;
 import com.bookstore.mapper.FavoriteMapper;
 import com.bookstore.mapper.OrderItemMapper;
 import com.bookstore.mapper.OrderMainMapper;
@@ -14,9 +17,14 @@ import com.bookstore.service.ai.AiClient;
 import com.bookstore.service.ai.AiClient.ChatMsg;
 import com.bookstore.utils.OssUrlBuilder;
 import lombok.RequiredArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -36,13 +44,20 @@ public class AiBookAgentService {
     private final AiProperties aiProps;
     private final AiAgentProperties agentProps;
     private final BookMapper bookMapper;
+    private final CartItemMapper cartItemMapper;
     private final FavoriteMapper favoriteMapper;
     private final OrderMainMapper orderMainMapper;
     private final OrderItemMapper orderItemMapper;
     private final SearchHistoryMapper searchHistoryMapper;
     private final OssUrlBuilder ossUrlBuilder;
+    private final UserReadingProfileService readingProfileService;
 
     private static final int CANDIDATE_LIMIT = 30;
+
+    // Self-injection for @Cacheable proxy (Lazy avoids circular dependency)
+    @Autowired
+    @Lazy
+    private AiBookAgentService self;
 
     public List<BookListVO> aiSearch(String keyword, Long userId) {
         long t0 = System.currentTimeMillis();
@@ -50,7 +65,7 @@ public class AiBookAgentService {
             return Collections.emptyList();
         }
         String kw = keyword.trim();
-        log.info("[aiSearch] query=\"{}\"", kw);
+        log.info("[aiSearch] query=\"{}\" userId={}", kw, userId);
 
         // Fast path: direct DB search for specific titles/authors (short, non-conversational queries)
         if (isDirectLookup(kw)) {
@@ -67,23 +82,43 @@ public class AiBookAgentService {
         }
 
         // Agent path: conversational/semantic queries
-        String userProfile = userId != null ? buildUserProfile(userId) : null;
-        List<Book> candidates = bookMapper.selectList(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Book>()
-                .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
-                .orderByDesc(Book::getSalesCount).last("LIMIT 30")
-        );
+        // 优先使用缓存的 LLM 用户画像分析，没有则用原始数据
+        boolean profileAnalyzed = false;
+        String userProfile = null;
+        if (userId != null) {
+            String cached = readingProfileService.getProfileAnalysis(userId);
+            if (cached != null) {
+                userProfile = cached;
+                profileAnalyzed = true;
+                log.info("[aiSearch] 使用缓存画像 userId={}", userId);
+            } else {
+                userProfile = buildRawUserProfile(userId);
+                log.info("[aiSearch] 无缓存画像，使用原始数据 userId={}", userId);
+            }
+        }
+
+        List<Book> candidates = self.getHotCandidates();
         List<Map<String, Object>> candidateMaps = candidates.stream()
             .map(this::toBookMap).toList();
 
         if (agentProps.isEnabled()) {
             try {
-                var agentResp = aiAgentClient.search(kw, candidateMaps, userId, userProfile);
-                List<Long> ids = agentResp.bookIds();
-                if (!ids.isEmpty()) {
-                    List<BookListVO> result = fetchBooksByIds(ids);
-                    log.info("[aiSearch] Agent {}ms, {} books, reasons={}",
-                        System.currentTimeMillis() - t0, result.size(), agentResp.reasons());
+                var cacheValue = self.getCachedAgentResults(kw, userId, candidateMaps, userProfile, profileAnalyzed);
+                if (cacheValue != null && cacheValue.getBookIds() != null && !cacheValue.getBookIds().isEmpty()) {
+                    List<BookListVO> result = fetchBooksByIds(cacheValue.getBookIds());
+                    log.info("[aiSearch] Agent {}ms, {} books", System.currentTimeMillis() - t0, result.size());
+
+                    // 当使用原始数据且 Agent 返回了分析结果时，同步写入缓存表供下次使用
+                    if (!profileAnalyzed && hasText(cacheValue.getAnalysis()) && userId != null) {
+                        readingProfileService.saveAnalysis(userId, cacheValue.getAnalysis());
+                    }
+
+                    if (hasText(cacheValue.getAnalysis())) {
+                        log.info("[aiSearch] 用户画像分析 ↓\n{}", cacheValue.getAnalysis());
+                    }
+                    if (cacheValue.getReasons() != null && !cacheValue.getReasons().isEmpty()) {
+                        log.info("[aiSearch] 推荐原因: {}", cacheValue.getReasons());
+                    }
                     return result;
                 }
             } catch (Exception e) {
@@ -125,24 +160,33 @@ public class AiBookAgentService {
     }
 
     public List<BookListVO> aiRecommend(Long userId, Integer limit) {
+        long t0 = System.currentTimeMillis();
         if (limit == null || limit < 1) limit = 10;
 
-        String userProfile = buildUserProfile(userId);
-        log.info("[aiRecommend] userId={}", userId);
+        String userProfile = buildRawUserProfile(userId);
+        log.info("[aiRecommend] userId={}, profile=\"{}\"", userId, truncate(userProfile, 200));
 
         if (agentProps.isEnabled()) {
             try {
                 var agentResp = aiAgentClient.recommend(userId, userProfile, Collections.emptyList(), limit);
                 List<Long> ids = agentResp.bookIds();
+                List<String> reasons = agentResp.reasons();
+                log.info("[aiRecommend] Agent {}ms, {} books, {} reasons",
+                    System.currentTimeMillis() - t0, ids.size(), reasons != null ? reasons.size() : 0);
+                if (reasons != null && !reasons.isEmpty()) {
+                    log.info("[aiRecommend] 推荐原因: {}", reasons);
+                }
                 if (!ids.isEmpty()) {
                     return fetchBooksByIds(ids);
                 }
+                log.warn("[aiRecommend] Agent返回空结果");
             } catch (Exception e) {
                 if (!agentProps.isFallbackOnFailure()) throw e;
                 log.warn("[aiRecommend] Agent失败降级, error={}", e.getMessage());
             }
         }
 
+        log.info("[aiRecommend] 无结果, Total {}ms", System.currentTimeMillis() - t0);
         return Collections.emptyList();
     }
 
@@ -348,6 +392,34 @@ public class AiBookAgentService {
         return result;
     }
 
+    // ========== 缓存相关方法 ==========
+
+    @Cacheable(value = "ai:search:candidates", key = "'hot30'")
+    public List<Book> getHotCandidates() {
+        return bookMapper.selectList(
+            new LambdaQueryWrapper<Book>()
+                .eq(Book::getStatus, 1).eq(Book::getDeleted, 0)
+                .orderByDesc(Book::getSalesCount).last("LIMIT 30")
+        );
+    }
+
+    @Cacheable(value = "ai:search:results:v2", key = "#keyword + '::' + (#userId != null ? #userId : 'anon')", unless = "#result == null || #result.bookIds == null || #result.bookIds.isEmpty()")
+    public SearchCacheValue getCachedAgentResults(String keyword, Long userId,
+                                                  List<Map<String, Object>> candidateMaps,
+                                                  String userProfile, boolean profileAnalyzed) {
+        var agentResp = aiAgentClient.search(keyword, candidateMaps, userId, userProfile, profileAnalyzed);
+        return new SearchCacheValue(agentResp.bookIds(), agentResp.reasons(), agentResp.analysis());
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SearchCacheValue {
+        private List<Long> bookIds;
+        private List<String> reasons;
+        private String analysis;
+    }
+
     private String buildCandidatePrompt(List<Book> books) {
         StringBuilder sb = new StringBuilder("候选图书列表:\n");
         int idx = 1;
@@ -365,7 +437,10 @@ public class AiBookAgentService {
         return sb.toString();
     }
 
-    private String buildUserProfile(Long userId) {
+    /**
+     * 构建原始用户数据文本（直接从 DB 拉取），供 LLM 分析或无缓存时使用
+     */
+    private String buildRawUserProfile(Long userId) {
         StringBuilder sb = new StringBuilder();
         try {
             // 收藏偏好
@@ -382,7 +457,48 @@ public class AiBookAgentService {
                     Book b = bookMapper.selectById(f.getBookId());
                     if (b != null) sb.append("《").append(b.getTitle()).append("》");
                 }
-                sb.append(" ");
+                sb.append("; ");
+            }
+
+            // 购物车中的图书
+            List<CartItem> cartItems = cartItemMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CartItem>()
+                    .eq(CartItem::getUserId, userId)
+                    .eq(CartItem::getDeleted, 0)
+                    .orderByDesc(CartItem::getCreateTime)
+                    .last("LIMIT 5")
+            );
+            if (!cartItems.isEmpty()) {
+                sb.append("购物车中的图书:");
+                for (CartItem ci : cartItems) {
+                    Book b = bookMapper.selectById(ci.getBookId());
+                    if (b != null) sb.append("《").append(b.getTitle()).append("》");
+                }
+                sb.append("; ");
+            }
+
+            // 订单中购买过的图书
+            List<com.bookstore.domain.po.OrderMain> orders = orderMainMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.bookstore.domain.po.OrderMain>()
+                    .eq(com.bookstore.domain.po.OrderMain::getUserId, userId)
+                    .ne(com.bookstore.domain.po.OrderMain::getStatus, "CANCELLED")
+                    .eq(com.bookstore.domain.po.OrderMain::getDeleted, 0)
+                    .orderByDesc(com.bookstore.domain.po.OrderMain::getCreateTime)
+                    .last("LIMIT 5")
+            );
+            if (!orders.isEmpty()) {
+                sb.append("购买过的图书:");
+                for (com.bookstore.domain.po.OrderMain o : orders) {
+                    List<com.bookstore.domain.po.OrderItem> items = orderItemMapper.selectList(
+                        new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.bookstore.domain.po.OrderItem>()
+                            .eq(com.bookstore.domain.po.OrderItem::getOrderId, o.getId())
+                    );
+                    for (com.bookstore.domain.po.OrderItem oi : items) {
+                        Book b = bookMapper.selectById(oi.getBookId());
+                        if (b != null) sb.append("《").append(b.getTitle()).append("》");
+                    }
+                }
+                sb.append("; ");
             }
 
             // 搜索历史
@@ -494,6 +610,8 @@ public class AiBookAgentService {
         m.put("author", b.getAuthor());
         m.put("price", b.getPrice() == null ? null : b.getPrice().toPlainString());
         m.put("description", b.getDescription());
+        m.put("rating", b.getRating());
+        m.put("salesCount", b.getSalesCount());
         return m;
     }
 

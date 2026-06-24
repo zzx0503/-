@@ -1,6 +1,7 @@
 package com.bookstore.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.Data;
 
 /**
@@ -22,6 +23,9 @@ public class Result<T> {
     private String msg;
     /** 业务数据载体，成功时返回具体数据，失败时为 null */
     private T data;
+    /** 响应耗时（毫秒），仅 AI 搜索等耗时接口返回 */
+    @JsonInclude(Include.NON_NULL)
+    private Long durationMs;
     /**
      * 私有构造方法，防止外部直接实例化
      * 统一通过静态工厂方法创建对象
@@ -38,6 +42,19 @@ public class Result<T> {
         r.code = ResultCode.SUCCESS.getCode();
         r.msg = ResultCode.SUCCESS.getDefaultMsg();
         r.data = data;
+        return r;
+    }
+
+    /**
+     * 构建成功的响应（带数据及耗时）
+     * @param data 业务数据
+     * @param durationMs 接口处理耗时（毫秒）
+     * @param <T> 数据类型
+     * @return 封装好的成功响应对象，code=200, msg="OK", durationMs=处理耗时
+     */
+    public static <T> Result<T> success(T data, Long durationMs) {
+        Result<T> r = success(data);
+        r.durationMs = durationMs;
         return r;
     }
 

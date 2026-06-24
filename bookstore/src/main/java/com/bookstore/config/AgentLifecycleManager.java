@@ -38,11 +38,20 @@ public class AgentLifecycleManager {
                 "--port", String.valueOf(parsePort(agentProps.getBaseUrl()))
             );
             pb.directory(new File(projectPath));
-            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            pb.environment().put("PYTHONIOENCODING", "utf-8");
+            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
             agentProcess = pb.start();
-            log.info("[Agent启动] Python Agent 已启动, PID={}, port={}",
-                agentProcess.pid(), parsePort(agentProps.getBaseUrl()));
+            int port = parsePort(agentProps.getBaseUrl());
+            log.info("");
+            log.info("╔══════════════════════════════════════════════════╗");
+            log.info("║        Python Agent 自动启动成功                ║");
+            log.info("║  PID    : {}                ║", agentProcess.pid());
+            log.info("║  Port   : {}                              ║", port);
+            log.info("║  URL    : http://localhost:{}/agent/search     ║", port);
+            log.info("║  Status : 运行中                              ║");
+            log.info("╚══════════════════════════════════════════════════╝");
+            log.info("");
         } catch (IOException e) {
             log.error("[Agent启动] 启动失败: {}", e.getMessage());
         }

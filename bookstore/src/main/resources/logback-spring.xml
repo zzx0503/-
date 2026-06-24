@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} : %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 项目业务日志 -->
+    <appender name="PROJECT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>D:/IDEA/demo/competition-code/logs/project/bookstore.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>D:/IDEA/demo/competition-code/logs/project/bookstore.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} : %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- AI 智能体日志 -->
+    <appender name="AGENT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>D:/IDEA/demo/competition-code/logs/ai-agent/agent.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>D:/IDEA/demo/competition-code/logs/ai-agent/agent.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} : %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 项目业务日志: com.bookstore 包下的 INFO+ 写入 project 日志 -->
+    <logger name="com.bookstore" level="INFO" additivity="false">
+        <appender-ref ref="PROJECT_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <!-- AI 智能体相关包: DEBUG+ 写入 agent 日志 -->
+    <logger name="com.bookstore.service.ai" level="DEBUG" additivity="false">
+        <appender-ref ref="AGENT_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="com.bookstore.config.AgentLifecycleManager" level="DEBUG" additivity="false">
+        <appender-ref ref="AGENT_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="com.bookstore.service.InternalToolService" level="DEBUG" additivity="false">
+        <appender-ref ref="AGENT_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="com.bookstore.controller.InternalToolController" level="DEBUG" additivity="false">
+        <appender-ref ref="AGENT_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <!-- MyBatis SQL 日志: DEBUG 级，仅写文件，控制台不显示 -->
+    <logger name="com.bookstore.mapper" level="DEBUG" additivity="false">
+        <appender-ref ref="PROJECT_FILE"/>
+    </logger>
+
+    <!-- 根日志: 控制台 + 项目文件（参考项目风格） -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="PROJECT_FILE"/>
+    </root>
+
+</configuration>

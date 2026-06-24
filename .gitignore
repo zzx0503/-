@@ -18,3 +18,16 @@ application-dev.yml
 application-prod.yml
 ai-agent/logs/
 logs/
+
+# Tests
+bookstore/src/test/
+ai-agent/tests/
+
+# Temporary docs
+bookstore/docs/
+
+# Temporary scripts & lock files
+bookstore/scripts/test_suite*.py
+bookstore/scripts/skills-lock.json
+bookstore/scripts/package*.json
+ai-agent/skills-lock.json

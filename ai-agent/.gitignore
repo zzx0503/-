@@ -22,3 +22,7 @@ Thumbs.db
 *.log
 logs/
 .agents/
+
+# Tests & lock files
+tests/
+skills-lock.json
